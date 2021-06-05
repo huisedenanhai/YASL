@@ -19,7 +19,7 @@ type term =
   | TmAtom of info * atomic_value
   | TmAbs of info * string * ty * term
   | TmApp of info * term * term
-  | TmLet of info * string * term * term
+  | TmLet of info * string * ty option * term * term
   | TmIf of info * term * term * term
   | TmLoop of info * term * term
   | TmTuple of info * term list

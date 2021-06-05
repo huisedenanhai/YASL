@@ -7,6 +7,7 @@ t :=    AtomicValues            (T-Atom)
         fn name: T. t           (T-Abs)
         t t                     (T-App)
         let id = t in t         (T-Let)
+        let id: T = t in t      (T-LetCheck)
         if t then t else t      (T-If)
         loop t t                (T-Loop)
         (t,...,t)               (T-Tuple)
@@ -43,6 +44,7 @@ TopLevel := uniform name: T
             extern func_name: T
             TypDeclare
             let name = t
+            let name: T = t
 
 ```
 

@@ -16,5 +16,5 @@ uniform iSampleRate: float
 extern normalize_vec3: vec3 -> vec3
 extern cross: vec3 -> vec3
 
-main = fn frag_coord: vec2. 
+let main = fn frag_coord: vec2. 
     vec4(frag_coord.0, frag_coord.1, 1.0, 1.0)
