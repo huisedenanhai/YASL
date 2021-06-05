@@ -5,13 +5,14 @@ type atomic_value =
   | FloatLiteral of float
   | BoolLiteral of bool
 
-type ty =
+type plain_ty =
   | TyCustom of string
-  | TyTuple of ty list
-  | TyArrow of ty * ty
-  | TyUnit
+  | TyTuple of plain_ty list
   | TyFloat
   | TyInt
+  | TyBool
+
+type ty = TyPlain of plain_ty | TyArrow of ty * ty | TyUnit
 
 type binary_op = BOpAdd | BOpMinus | BOpDiv | BOpMul
 
@@ -28,7 +29,6 @@ type term =
   | TmRecord of info * string * (string * term) list
   | TmRecordAccess of info * term * string
   | TmUnit of info
-  | TmCast of info * term * ty
   | TmMinus of info * term
   | TmBinaryOp of info * term * binary_op * term
 
