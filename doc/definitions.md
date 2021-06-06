@@ -31,12 +31,12 @@ T :=    PlainType
         T <'c>-> T
 
 PlainType :=    TyName
-                (PlainType, ..., PlainType)
+                [PlainType, ..., PlainType]
                 float
                 int
                 bool
 
-TypeDeclare :=  type TyName(PlainType, ... , PlainType)
+TypeDeclare :=  type TyName[PlainType, ... , PlainType]
                 type Tyname{li: PlainType, ..., lj: PlainType}
 
 TopLevel := uniform name: PlainType
