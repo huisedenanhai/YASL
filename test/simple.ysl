@@ -3,7 +3,12 @@ type vec3[float, float, float]
 type vec4[float, float, float, float]
 
 type mat3[vec3, vec3, vec3]
-type mat4[vec4, vec4, vec4]
+type mat4[vec4, vec4, vec4, vec4]
+
+type Ray {
+    origin: vec3,
+    direction: vec3
+}
 
 uniform iResolution: vec3
 uniform iTime: float

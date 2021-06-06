@@ -1,4 +1,5 @@
 open Parser
+open Syntax
 
 let read_whole_file filename =
   let ch = open_in filename in
@@ -11,5 +12,5 @@ let main =
   else
     let tokens = Sys.argv.(1) |> read_whole_file |> str_to_tokens in
     List.iter (fun tk -> print_endline (desc_string_of_token tk)) tokens;
-    let _ = parse_toplevel tokens in
-    ()
+    parse_toplevel tokens
+    |> List.iter (fun tp -> print_endline (desc_string_of_toplevel_term tp))

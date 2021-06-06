@@ -25,7 +25,27 @@ type plain_ty =
   | TyInt
   | TyBool
 
+let rec desc_string_of_plain_ty = function
+  | TyCustom name -> Printf.sprintf "TyCustom(%s)" name
+  | TyTuple ts ->
+      let ts_desc =
+        ts
+        |> List.map (fun pt -> desc_string_of_plain_ty pt)
+        |> String.concat ", "
+      in
+      Printf.sprintf "TyTuple[%s]" ts_desc
+  | TyFloat -> "TyFloat"
+  | TyInt -> "TyInt"
+  | TyBool -> "TyBool"
+
 type ty = TyPlain of plain_ty | TyArrow of int * plain_ty * ty
+
+let rec desc_string_of_type = function
+  | TyPlain pt -> desc_string_of_plain_ty pt
+  | TyArrow (id, pt, dt) ->
+      Printf.sprintf "%s <%d>-> %s"
+        (desc_string_of_plain_ty pt)
+        id (desc_string_of_type dt)
 
 type binary_op = BOpAdd | BOpMinus | BOpDiv | BOpMul
 
@@ -44,13 +64,49 @@ type term =
   | TmMinus of tm_info * term
   | TmBinaryOp of tm_info * term * binary_op * term
 
+let desc_string_of_term _ = "Term"
+
 type ty_declare =
   | TyDeclTuple of string * plain_ty list
   | TyDeclRecord of string * (string * plain_ty) list
 
-type top_level_term =
+let desc_string_of_ty_declare = function
+  | TyDeclTuple (name, ts) ->
+      let ts_desc =
+        ts
+        |> List.map (fun pt -> desc_string_of_plain_ty pt)
+        |> String.concat ", "
+      in
+      Printf.sprintf "TyDeclTuple(%s, [%s])" name ts_desc
+  | TyDeclRecord (name, kts) ->
+      let kts_desc =
+        kts
+        |> List.map (fun (k, pt) ->
+               Printf.sprintf "%s: %s" k (desc_string_of_plain_ty pt))
+        |> String.concat ", "
+      in
+      Printf.sprintf "TyDeclRecord(%s, {%s})" name kts_desc
+
+type toplevel_term =
   | TopTmUnfiorm of tm_info * string * plain_ty
   | TopTmExtern of tm_info * string * ty
   | TopTmTyDeclare of tm_info * ty_declare
   | TopTmLet of tm_info * string * term
   | TopTmEntry of tm_info * string * term
+
+let desc_string_of_toplevel_term = function
+  | TopTmUnfiorm (info, name, ty) ->
+      Printf.sprintf "Uniform<%s>(%s, %s)" (string_of_tm_info info) name
+        (desc_string_of_plain_ty ty)
+  | TopTmExtern (info, name, ty) ->
+      Printf.sprintf "Extern<%s>(%s, %s)" (string_of_tm_info info) name
+        (desc_string_of_type ty)
+  | TopTmTyDeclare (info, decl) ->
+      Printf.sprintf "TyDeclare<%s>(%s)" (string_of_tm_info info)
+        (desc_string_of_ty_declare decl)
+  | TopTmLet (info, name, tm) ->
+      Printf.sprintf "Let<%s>(%s, %s)" (string_of_tm_info info) name
+        (desc_string_of_term tm)
+  | TopTmEntry (info, name, tm) ->
+      Printf.sprintf "Entry<%s>(%s, %s)" (string_of_tm_info info) name
+        (desc_string_of_term tm)
