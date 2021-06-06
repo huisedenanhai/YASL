@@ -24,8 +24,8 @@ AtomicValues := IntLiteral
 v :=    unit
         AtomicValues
         TyName{li = v, ..., lj = v}
-        (v, ..., v)
-        TyName(v, ..., v)
+        [v, ..., v]
+        TyName[v, ..., v]
 
 T :=    PlainType
         T <'c>-> T

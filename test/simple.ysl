@@ -1,9 +1,9 @@
-type vec2(float, float)
-type vec3(float, float, float)
-type vec4(float, float, float, float)
+type vec2[float, float]
+type vec3[float, float, float]
+type vec4[float, float, float, float]
 
-type mat3(vec3, vec3, vec3)
-type mat4(vec4, vec4, vec4)
+type mat3[vec3, vec3, vec3]
+type mat4[vec4, vec4, vec4]
 
 uniform iResolution: vec3
 uniform iTime: float
@@ -17,4 +17,4 @@ extern normalize_vec3: vec3 -> vec3
 extern cross: vec3 -> vec3
 
 entry main = fn frag_coord: vec2. 
-    vec4(frag_coord.0, frag_coord.1, 1.0, 1.0)
+    vec4[frag_coord.0, frag_coord.1, 1.0, 1.0].x
