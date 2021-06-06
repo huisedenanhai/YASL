@@ -18,6 +18,12 @@ type atomic_value =
   | FloatLiteral of float
   | BoolLiteral of bool
 
+let desc_string_of_atomic_value = function
+  | IntLiteral v -> Printf.sprintf "IntLiteral(%d)" v
+  | FloatLiteral v -> Printf.sprintf "FloatLiteral(%f)" v
+  | BoolLiteral v ->
+      Printf.sprintf "BoolLiteral(%s)" (if v then "true" else "false")
+
 type plain_ty =
   | TyCustom of string
   | TyTuple of plain_ty list
@@ -49,22 +55,11 @@ let rec desc_string_of_type = function
 
 type binary_op = BOpAdd | BOpMinus | BOpDiv | BOpMul
 
-type term =
-  | TmAtom of tm_info * atomic_value
-  | TmAbs of tm_info * string * ty * term
-  | TmApp of tm_info * term * term
-  | TmLet of tm_info * string * term * term
-  | TmIf of tm_info * term * term * term
-  | TmLoop of tm_info * term * term
-  | TmTuple of tm_info * term list
-  | TmNamedTuple of tm_info * string * term list
-  | TmTupleAccess of tm_info * term * int
-  | TmRecord of tm_info * string * (string * term) list
-  | TmRecordAccess of tm_info * term * string
-  | TmMinus of tm_info * term
-  | TmBinaryOp of tm_info * term * binary_op * term
-
-let desc_string_of_term _ = "Term"
+let string_of_binary_op = function
+  | BOpAdd -> "+"
+  | BOpMinus -> "-"
+  | BOpDiv -> "/"
+  | BOpMul -> "*"
 
 type ty_declare =
   | TyDeclTuple of string * plain_ty list
@@ -86,6 +81,97 @@ let desc_string_of_ty_declare = function
         |> String.concat ", "
       in
       Printf.sprintf "TyDeclRecord(%s, {%s})" name kts_desc
+
+type term =
+  | TmAtom of tm_info * atomic_value
+  | TmAbs of tm_info * string * ty * term
+  | TmApp of tm_info * term * term
+  | TmLet of tm_info * string * term * term
+  | TmIf of tm_info * term * term * term
+  | TmLoop of tm_info * term * term
+  | TmTuple of tm_info * term list
+  | TmNamedTuple of tm_info * string * term list
+  | TmTupleAccess of tm_info * term * int
+  | TmRecord of tm_info * string * (string * term) list
+  | TmRecordAccess of tm_info * term * string
+  | TmMinus of tm_info * term
+  | TmBinaryOp of tm_info * binary_op * term * term
+
+let rec desc_string_of_term_indent indent tm =
+  let next_indent = indent ^ "  " in
+  match tm with
+  | TmAtom (info, av) ->
+      Printf.sprintf "%sTmAtom<%s>(%s)" indent (string_of_tm_info info)
+        (desc_string_of_atomic_value av)
+  | TmAbs (info, name, ty, tm) ->
+      Printf.sprintf "%sTmAbs<%s>(%s: %s,\n%s)" indent (string_of_tm_info info)
+        name (desc_string_of_type ty)
+        (desc_string_of_term_indent next_indent tm)
+  | TmApp (info, t1, t2) ->
+      Printf.sprintf "%sTmApp<%s>(\n%s,\n%s)" indent (string_of_tm_info info)
+        (desc_string_of_term_indent next_indent t1)
+        (desc_string_of_term_indent next_indent t2)
+  | TmLet (info, name, t1, t2) ->
+      Printf.sprintf "%sTmLet<%s>(%s =\n%s in\n%s)" indent
+        (string_of_tm_info info) name
+        (desc_string_of_term_indent next_indent t1)
+        (desc_string_of_term_indent next_indent t2)
+  | TmIf (info, t1, t2, t3) ->
+      Printf.sprintf "%sTmIf<%s>(%s then\n%s else\n%s)" indent
+        (string_of_tm_info info)
+        (desc_string_of_term_indent next_indent t1)
+        (desc_string_of_term_indent next_indent t2)
+        (desc_string_of_term_indent next_indent t3)
+  | TmLoop (info, t1, t2) ->
+      Printf.sprintf "%sTmLoop<%s>(\n%s,\n%s)" indent (string_of_tm_info info)
+        (desc_string_of_term_indent next_indent t1)
+        (desc_string_of_term_indent next_indent t2)
+  | TmTuple (info, tms) ->
+      let tms_desc =
+        tms
+        |> List.map (fun t -> desc_string_of_term_indent next_indent t)
+        |> String.concat ",\n"
+      in
+      Printf.sprintf "%sTmTuple<%s>[\n%s]" indent (string_of_tm_info info)
+        tms_desc
+  | TmNamedTuple (info, name, tms) ->
+      let tms_desc =
+        tms
+        |> List.map (fun t -> desc_string_of_term_indent next_indent t)
+        |> String.concat ",\n"
+      in
+      Printf.sprintf "%sTmNamedTuple<%s>(%s)[\n%s]" indent
+        (string_of_tm_info info) name tms_desc
+  | TmRecord (info, name, kts) ->
+      let kts_desc =
+        kts
+        |> List.map (fun (k, tm) ->
+               Printf.sprintf "%s%s: %s" next_indent k
+                 (desc_string_of_term_indent (next_indent ^ "  ") tm))
+        |> String.concat ",\n"
+      in
+      Printf.sprintf "%sTmRecord<%s>(%s){\n%s}" indent (string_of_tm_info info)
+        name kts_desc
+  | TmTupleAccess (info, tm, index) ->
+      Printf.sprintf "%sTmTupleAccess<%s>(\n%s. %d)" indent
+        (string_of_tm_info info)
+        (desc_string_of_term_indent next_indent tm)
+        index
+  | TmRecordAccess (info, tm, label) ->
+      Printf.sprintf "%sTmRecordAccess<%s>(\n%s. %s)" indent
+        (string_of_tm_info info)
+        (desc_string_of_term_indent next_indent tm)
+        label
+  | TmMinus (info, tm) ->
+      Printf.sprintf "%sTmMinus<%s>(\n%s)" indent (string_of_tm_info info)
+        (desc_string_of_term_indent next_indent tm)
+  | TmBinaryOp (info, op, t1, t2) ->
+      Printf.sprintf "%sTmBinaryOp<%s>(%s\n%s\n%s)" indent
+        (string_of_tm_info info) (string_of_binary_op op)
+        (desc_string_of_term_indent next_indent t1)
+        (desc_string_of_term_indent next_indent t2)
+
+let desc_string_of_term tm = desc_string_of_term_indent "" tm
 
 type toplevel_term =
   | TopTmUnfiorm of tm_info * string * plain_ty
