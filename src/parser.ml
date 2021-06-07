@@ -206,46 +206,52 @@ let is_binary_op str = List.flatten binary_ops |> List.exists (fun s -> s = str)
 
 let rec resolve_tm_stack tm_stk pred =
   match tm_stk with
-  | (op, tm) :: tl when List.length tl >= 1 -> (
+  | (op, info, tm) :: tl when List.length tl >= 1 -> (
       let op_pred = get_op_pred op in
       if op_pred <= pred then tm_stk
       else
-        let tm_stk = resolve_tm_stack tm_stk pred in
+        let tm_stk = resolve_tm_stack tl pred in
         match tm_stk with
-        | (prev_op, prev_tm) :: tl ->
-            let info = get_tm_info tm in
+        | (prev_op, prev_info, prev_tm) :: tl ->
             let composite_tm =
               try
                 let op = binary_op_of_string op in
                 TmBinaryOp (info, op, prev_tm, tm)
               with Not_found -> TmApp (info, prev_tm, tm)
             in
-            (prev_op, composite_tm) :: tl
+            (prev_op, prev_info, composite_tm) :: tl
         | _ -> raise (ParseError "fatal resolve term stack. should not happen"))
   | _ -> tm_stk
+
+let rec resolve_tm_stack_all tm_stk =
+  if List.length tm_stk <= 1 then tm_stk
+  else
+    let op, _, _ = List.hd tm_stk in
+    let pred = get_op_pred op in
+    resolve_tm_stack_all (resolve_tm_stack tm_stk (pred - 1))
 
 let rec parse_tm_stack tm_stk tks =
   let is_stop_symbol str =
     keywords @ [ ")"; "]"; "}"; "," ] |> List.exists (fun s -> s = str)
   in
-  let parse_op op tl =
+  let parse_op info op tl =
     let tm, tl = parse_single_term tl in
     let tm_stk = resolve_tm_stack tm_stk (get_op_pred op) in
-    parse_tm_stack ((op, tm) :: tm_stk) tl
+    parse_tm_stack ((op, info, tm) :: tm_stk) tl
   in
   let finish () =
-    let _, tm = List.hd (resolve_tm_stack tm_stk 0) in
+    let _, _, tm = List.hd (resolve_tm_stack_all tm_stk) in
     (tm, tks)
   in
   match tks with
   | (_, stop) :: _ when is_stop_symbol stop -> finish ()
-  | (_, op) :: tl when is_binary_op op -> parse_op op tl
+  | (info, op) :: tl when is_binary_op op -> parse_op info op tl
   | [] -> finish ()
-  | tl -> parse_op "" tl
+  | (info, _) :: _ -> parse_op info "" tks
 
 and parse_term tks =
   let tm, tl = parse_single_term tks in
-  parse_tm_stack [ ("", tm) ] tl
+  parse_tm_stack [ ("", get_tm_info tm, tm) ] tl
 
 and parse_tm_abs info name tks =
   let ty, tl = parse_plain_type tks in

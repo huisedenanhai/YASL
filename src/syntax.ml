@@ -158,15 +158,18 @@ let rec desc_string_of_term_indent indent tm =
         (desc_string_of_term_indent next_indent t1)
         (desc_string_of_term_indent next_indent t2)
   | TmLet (info, name, t1, t2) ->
-      Printf.sprintf "%sTmLet<%s>(%s =\n%s in\n%s)" indent
+      Printf.sprintf "%sTmLet<%s>(%s =\n%s\n%sin\n%s)" indent
         (string_of_tm_info info) name
         (desc_string_of_term_indent next_indent t1)
+        indent
         (desc_string_of_term_indent next_indent t2)
   | TmIf (info, t1, t2, t3) ->
-      Printf.sprintf "%sTmIf<%s>(%s then\n%s else\n%s)" indent
+      Printf.sprintf "%sTmIf<%s>(\n%s\n%sthen\n%s\n%selse\n%s)" indent
         (string_of_tm_info info)
         (desc_string_of_term_indent next_indent t1)
+        indent
         (desc_string_of_term_indent next_indent t2)
+        indent
         (desc_string_of_term_indent next_indent t3)
   | TmLoop (info, t1, t2) ->
       Printf.sprintf "%sTmLoop<%s>(\n%s,\n%s)" indent (string_of_tm_info info)
@@ -179,7 +182,7 @@ let rec desc_string_of_term_indent indent tm =
         |> String.concat ",\n"
       in
       Printf.sprintf "%sTmTuple<%s>[\n%s\n%s]" indent (string_of_tm_info info)
-        indent tms_desc
+        tms_desc indent
   | TmNamedTuple (info, name, tms) ->
       let tms_desc =
         tms
