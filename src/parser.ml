@@ -2,7 +2,36 @@ open Syntax
 
 type token = tm_info * string
 
-let is_ident str = Str.string_match (Str.regexp "[a-zA-Z_][a-zA-Z_0-9]*$") str 0
+let keywords =
+  [ "fn"; "let"; "in"; "uniform"; "entry"; "extern"; "if"; "else"; "then" ]
+
+let is_keyword str = List.exists (fun k -> k = str) keywords
+
+let is_ident str =
+  (not (is_keyword str))
+  && Str.string_match (Str.regexp "[a-zA-Z_][a-zA-Z_0-9]*$") str 0
+
+let is_int_literal str = Str.string_match (Str.regexp "[0-9]+$") str 0
+
+let is_number_literal str =
+  Str.string_match (Str.regexp "[0-9]+\\(\\.[0-9]+\\)?$") str 0
+
+let is_float_literal str = is_number_literal str && not (is_int_literal str)
+
+let is_bool_literal str = str = "true" || str = "false"
+
+let is_literal str = is_number_literal str || is_bool_literal str
+
+let value_of_bool_literal str = if str = "true" then true else false
+
+let value_of_int_literal str = int_of_string str
+
+let value_of_float_literal str = float_of_string str
+
+let is_tight_packed = function
+  | (info1, str1), info2 ->
+      info1.line = info2.line
+      && info1.column + String.length str1 = info2.column
 
 let desc_string_of_token tk =
   let info, name = tk in
@@ -19,6 +48,11 @@ let raise_parse_err tm_info desc =
   raise (ParseError (string_of_tm_info tm_info ^ ": " ^ desc))
 
 let raise_parse_err_eof () = raise (ParseError "unexpected eof")
+
+let raise_parse_err_tks tks desc =
+  match tks with
+  | [] -> raise_parse_err_eof ()
+  | (info, _) :: _ -> raise_parse_err info desc
 
 let split_str_at str n =
   (String.sub str 0 n, String.sub str n (String.length str - n))
@@ -145,7 +179,118 @@ let parse_type_declare name = function
   | [] -> raise_parse_err_eof ()
   | (info, _) :: _ -> raise_parse_err info "invalid type declare"
 
+let create_tm_atom info v =
+  let v =
+    if is_bool_literal v then BoolLiteral (value_of_bool_literal v)
+    else if is_float_literal v then FloatLiteral (value_of_float_literal v)
+    else IntLiteral (value_of_int_literal v)
+  in
+  TmAtom (info, v)
+
 let parse_term tks = (TmAtom (init_tm_info, FloatLiteral 1.0), tks)
+
+let parse_tm_abs info name tks =
+  let ty, tl = parse_plain_type tks in
+  match tl with
+  | (_, ".") :: tl ->
+      let tm, tl = parse_term tl in
+      (TmAbs (info, name, ty, tm), tl)
+  | _ -> raise_parse_err info "function expect body"
+
+let parse_tm_let info name tks =
+  let t1, tl = parse_term tks in
+  match tl with
+  | (_, "in") :: tl ->
+      let t2, tl = parse_term tl in
+      (TmLet (info, name, t1, t2), tl)
+  | _ -> raise_parse_err info "expect 'in' for let binding"
+
+let parse_tm_if info tks =
+  let t1, tl = parse_term tks in
+  match tl with
+  | (_, "then") :: tl -> (
+      let t2, tl = parse_term tl in
+      match tl with
+      | (_, "else") :: tl ->
+          let t3, tl = parse_term tl in
+          (TmIf (info, t1, t2, t3), tl)
+      | _ -> raise_parse_err info "expect 'else' for if clause")
+  | _ -> raise_parse_err info "expect 'then' for if clause"
+
+let parse_tm_loop info tks =
+  let t1, tl = parse_term tks in
+  match tl with
+  | (_, "in") :: tl ->
+      let t2, tl = parse_term tl in
+      (TmLoop (info, t1, t2), tl)
+  | _ -> raise_parse_err info "expect 'in' for loop clause"
+
+let rec parse_tm_tuple info = function
+  | (_, "]") :: tl -> ([], tl)
+  | tl -> (
+      let tm, tl = parse_term tl in
+      match tl with
+      | (info, ",") :: tl ->
+          let tms, tl = parse_tm_tuple info tl in
+          (tm :: tms, tl)
+      | _ -> raise_parse_err info "invalid tuple")
+
+let parse_kv_pair = function
+  | (_, label) :: (_, "=") :: tl ->
+      let tm, tl = parse_term tl in
+      ((label, tm), tl)
+  | tl -> raise_parse_err_tks tl "expect key-value pair"
+
+let rec parse_kv_list = function
+  | (_, "}") :: tl -> ([], tl)
+  | tl -> (
+      let kv, tl = parse_kv_pair tl in
+      match tl with
+      | (_, ",") :: tl ->
+          let kvs, tl = parse_kv_list tl in
+          (kv :: kvs, tl)
+      | tl -> raise_parse_err_tks tl "invalid key-value list")
+
+let parse_single_element_term = function
+  | (info, v) :: tl when is_literal v -> (create_tm_atom info v, tl)
+  | (info, "fn") :: (_, name) :: (_, ":") :: tl when is_ident name ->
+      parse_tm_abs info name tl
+  | (info, "let") :: (_, name) :: (_, "=") :: tl when is_ident name ->
+      parse_tm_let info name tl
+  | (info, "if") :: tl -> parse_tm_if info tl
+  | (info, "loop") :: tl -> parse_tm_loop info tl
+  | (info, "[") :: tl ->
+      let tms, tl = parse_tm_tuple info tl in
+      (TmTuple (info, tms), tl)
+  | (info, "(") :: tl -> (
+      let tm, tl = parse_term tl in
+      match tl with
+      | (_, ")") :: tl -> (tm, tl)
+      | _ -> raise_parse_err info "unpaired (")
+  | (info, ident) :: tl when is_ident ident -> (
+      match tl with
+      | (info2, "[") :: tl when is_tight_packed ((info, ident), info2) ->
+          let tms, tl = parse_tm_tuple info2 tl in
+          (TmNamedTuple (info, ident, tms), tl)
+      | (info2, "{") :: tl when is_tight_packed ((info, ident), info2) ->
+          let kvs, tl = parse_kv_list tl in
+          (TmRecord (info, ident, kvs), tl)
+      | _ -> (TmIdent (info, ident), tl))
+  | tl -> raise_parse_err_tks tl "expect single term"
+
+let rec decorate_accessor tm tl =
+  match tl with
+  | (_, ".") :: (info, label) :: tl when is_ident label ->
+      decorate_accessor (TmRecordAccess (info, tm, label)) tl
+  | (_, ".") :: (info, index) :: tl when is_int_literal index ->
+      decorate_accessor
+        (TmTupleAccess (info, tm, value_of_int_literal index))
+        tl
+  | _ -> (tm, tl)
+
+let parse_sigle_term tks =
+  let tm, tl = parse_single_element_term tks in
+  decorate_accessor tm tl
 
 let rec parse_toplevel = function
   | [] -> []

@@ -8,7 +8,7 @@ t :=    AtomicValues            (T-Atom)
         t t                     (T-App)
         let id = t in t         (T-Let)
         if t then t else t      (T-If)
-        loop t t                (T-Loop)
+        loop t in t             (T-Loop)
         [t, ..., t]             (T-Tuple)
         TyName[t, ..., t]       (T-NamedTuple)
         t.IntLiteral            (T-TupleAccess)
@@ -16,6 +16,7 @@ t :=    AtomicValues            (T-Atom)
         t.l                     (T-RecordAccess)
         -t                      (T-Minus)
         t op t                  (T-BinaryOp)
+        name                    (T-Ident)
     
 AtomicValues := IntLiteral
                 FloatLiteral

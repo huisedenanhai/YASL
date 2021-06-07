@@ -84,7 +84,7 @@ let desc_string_of_ty_declare = function
 
 type term =
   | TmAtom of tm_info * atomic_value
-  | TmAbs of tm_info * string * ty * term
+  | TmAbs of tm_info * string * plain_ty * term
   | TmApp of tm_info * term * term
   | TmLet of tm_info * string * term * term
   | TmIf of tm_info * term * term * term
@@ -96,6 +96,7 @@ type term =
   | TmRecordAccess of tm_info * term * string
   | TmMinus of tm_info * term
   | TmBinaryOp of tm_info * binary_op * term * term
+  | TmIdent of tm_info * string
 
 let rec desc_string_of_term_indent indent tm =
   let next_indent = indent ^ "  " in
@@ -105,7 +106,8 @@ let rec desc_string_of_term_indent indent tm =
         (desc_string_of_atomic_value av)
   | TmAbs (info, name, ty, tm) ->
       Printf.sprintf "%sTmAbs<%s>(%s: %s,\n%s)" indent (string_of_tm_info info)
-        name (desc_string_of_type ty)
+        name
+        (desc_string_of_plain_ty ty)
         (desc_string_of_term_indent next_indent tm)
   | TmApp (info, t1, t2) ->
       Printf.sprintf "%sTmApp<%s>(\n%s,\n%s)" indent (string_of_tm_info info)
@@ -170,6 +172,8 @@ let rec desc_string_of_term_indent indent tm =
         (string_of_tm_info info) (string_of_binary_op op)
         (desc_string_of_term_indent next_indent t1)
         (desc_string_of_term_indent next_indent t2)
+  | TmIdent (info, ident) ->
+      Printf.sprintf "%sTmIdent<%s>(%s)" indent (string_of_tm_info info) ident
 
 let desc_string_of_term tm = desc_string_of_term_indent "" tm
 
