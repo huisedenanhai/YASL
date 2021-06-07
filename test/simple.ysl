@@ -22,9 +22,10 @@ extern normalize_vec3: vec3 -> vec3
 extern cross: vec3 -> vec3
 
 entry main = fn frag_coord: vec2. 
-    let v = (1.0 + 1.0) * 2.0 + 2.0 * 3.0 - 10.0 in
+    let v = (1.0 + 1.0) * 2.0 + 2.0 * 3.0 - -10.0 in
     let n = normalize_vec3 vec3[frag_coord.0, frag_coord.1, v] in
-    let i = loop 12 in fn i: int.
-        if i <= 0 then [false, i] else [true, i - 1]
+    let i = loop 12 in
+        fn i: int.
+            if i <= 0 then [false, i] else [true, i - 1]
     in
     vec4[n.0, n.1, n.2, 1.0].x

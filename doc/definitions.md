@@ -22,8 +22,7 @@ AtomicValues := IntLiteral
                 FloatLiteral
                 BoolLiteral
 
-v :=    unit
-        AtomicValues
+v :=    AtomicValues
         TyName{li = v, ..., lj = v}
         [v, ..., v]
         TyName[v, ..., v]
@@ -47,7 +46,7 @@ TopLevel := uniform name: PlainType
             entry name = t
 ```
 
-`'c` in function type `T <'c>-> T` is auto generated function id, so each function has different type, which makes code gen simple as calling context type and method to call are all deterministic.
+`'c` in function type `T <'c>-> T` is auto generated function id, so each function has different type, which makes code gen simple, as calling context and behaviour are all deterministic for a function.
 
 Users will not write any `'c`. If one writes `T1 -> T2` for type checking, he declares a template type with parameter `'c`, which will be instantiated later as `T1 <'c>-> T2`.
 

@@ -7,10 +7,14 @@ let read_whole_file filename =
   close_in ch;
   s
 
+let print_tokens tokens =
+  List.iter (fun tk -> print_endline (desc_string_of_token tk)) tokens
+
+let print_toplevel toplevel =
+  List.iter (fun tp -> print_endline (desc_string_of_toplevel_term tp)) toplevel
+
 let main =
   if Array.length Sys.argv < 2 then print_endline "please specify input file"
   else
-    let tokens = Sys.argv.(1) |> read_whole_file |> str_to_tokens in
-    List.iter (fun tk -> print_endline (desc_string_of_token tk)) tokens;
-    parse_toplevel tokens
-    |> List.iter (fun tp -> print_endline (desc_string_of_toplevel_term tp))
+    Sys.argv.(1) |> read_whole_file |> str_to_tokens |> parse_toplevel
+    |> print_toplevel

@@ -1,18 +1,3 @@
-type tm_info = { line : int; column : int }
-
-let create_tm_info l c = { line = l; column = c }
-
-let init_tm_info = create_tm_info 1 1
-
-let info_inc_column_n info n = { line = info.line; column = info.column + n }
-
-let info_inc_column info = info_inc_column_n info 1
-
-let info_inc_line info = { line = info.line + 1; column = 1 }
-
-let string_of_tm_info info =
-  Printf.sprintf "line: %d, column %d" info.line info.column
-
 type atomic_value =
   | IntLiteral of int
   | FloatLiteral of float
@@ -52,6 +37,24 @@ let rec desc_string_of_type = function
       Printf.sprintf "%s <%d>-> %s"
         (desc_string_of_plain_ty pt)
         id (desc_string_of_type dt)
+
+type tm_info = { line : int; column : int; ty : ty option }
+
+let create_tm_info l c = { line = l; column = c; ty = None }
+
+let init_tm_info = create_tm_info 1 1
+
+let info_inc_column_n info n = { info with column = info.column + n }
+
+let info_inc_column info = info_inc_column_n info 1
+
+let info_inc_line info = { info with line = info.line + 1; column = 1 }
+
+let string_of_tm_info info =
+  let ty_desc =
+    match info.ty with None -> "Unknown" | Some t -> desc_string_of_type t
+  in
+  Printf.sprintf "line: %d, column: %d, ty: %s" info.line info.column ty_desc
 
 type binary_op =
   | BOpAdd
