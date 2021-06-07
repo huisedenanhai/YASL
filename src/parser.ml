@@ -214,10 +214,9 @@ let rec resolve_tm_stack tm_stk pred =
         match tm_stk with
         | (prev_op, prev_info, prev_tm) :: tl ->
             let composite_tm =
-              try
-                let op = binary_op_of_string op in
-                TmBinaryOp (info, op, prev_tm, tm)
-              with Not_found -> TmApp (info, prev_tm, tm)
+              if is_binary_op op then
+                TmOp (info, op, TmTuple (info, [ prev_tm; tm ]))
+              else TmApp (info, prev_tm, tm)
             in
             (prev_op, prev_info, composite_tm) :: tl
         | _ -> raise (ParseError "fatal resolve term stack. should not happen"))
@@ -361,7 +360,7 @@ and parse_single_decorated_element_term tks =
 and parse_single_term = function
   | (info, "-") :: tl ->
       let tm, tl = parse_single_decorated_element_term tl in
-      (TmMinus (info, tm), tl)
+      (TmOp (info, "-", tm), tl)
   | tl -> parse_single_decorated_element_term tl
 
 let rec parse_toplevel = function

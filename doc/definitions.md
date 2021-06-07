@@ -56,6 +56,10 @@ Entry functions are visible in the translated GLSL code.
 
 Types should be forward declared. We don't support recursive types.
 
+Operators are overloaded. Operators are not a term by its own. Our syntax also avoid partial application of operators. Thus each terms still has unique types.
+
+Unary and binary operators are merged into TmOp in our implementation for simplicity.
+
 ## Typing
 
 ```

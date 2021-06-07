@@ -56,42 +56,6 @@ let string_of_tm_info info =
   in
   Printf.sprintf "line: %d, column: %d, ty: %s" info.line info.column ty_desc
 
-type binary_op =
-  | BOpAdd
-  | BOpMinus
-  | BOpDiv
-  | BOpMul
-  | BOpLess
-  | BOpGreater
-  | BOpLessEq
-  | BOpGreaterEQ
-  | BOpEq
-
-let string_of_binary_op = function
-  | BOpAdd -> "+"
-  | BOpMinus -> "-"
-  | BOpDiv -> "/"
-  | BOpMul -> "*"
-  | BOpLess -> "<"
-  | BOpGreater -> ">"
-  | BOpLessEq -> "<="
-  | BOpGreaterEQ -> ">="
-  | BOpEq -> "=="
-
-let binary_op_of_string str =
-  [
-    ("+", BOpAdd);
-    ("-", BOpMinus);
-    ("/", BOpDiv);
-    ("*", BOpMul);
-    ("<", BOpLess);
-    (">", BOpGreater);
-    ("<=", BOpLessEq);
-    (">=", BOpGreaterEQ);
-    ("==", BOpEq);
-  ]
-  |> List.assoc str
-
 type ty_declare =
   | TyDeclTuple of string * plain_ty list
   | TyDeclRecord of string * (string * plain_ty) list
@@ -125,8 +89,7 @@ type term =
   | TmTupleAccess of tm_info * term * int
   | TmRecord of tm_info * string * (string * term) list
   | TmRecordAccess of tm_info * term * string
-  | TmMinus of tm_info * term
-  | TmBinaryOp of tm_info * binary_op * term * term
+  | TmOp of tm_info * string * term
   | TmIdent of tm_info * string
 
 let get_tm_info = function
@@ -141,8 +104,7 @@ let get_tm_info = function
   | TmTupleAccess (info, _, _) -> info
   | TmRecord (info, _, _) -> info
   | TmRecordAccess (info, _, _) -> info
-  | TmMinus (info, _) -> info
-  | TmBinaryOp (info, _, _, _) -> info
+  | TmOp (info, _, _) -> info
   | TmIdent (info, _) -> info
 
 let rec desc_string_of_term_indent indent tm =
@@ -214,14 +176,9 @@ let rec desc_string_of_term_indent indent tm =
         (string_of_tm_info info)
         (desc_string_of_term_indent next_indent tm)
         indent label
-  | TmMinus (info, tm) ->
-      Printf.sprintf "%sTmMinus<%s>(\n%s)" indent (string_of_tm_info info)
+  | TmOp (info, op, tm) ->
+      Printf.sprintf "%sTmOp<%s>(%s\n%s)" indent (string_of_tm_info info) op
         (desc_string_of_term_indent next_indent tm)
-  | TmBinaryOp (info, op, t1, t2) ->
-      Printf.sprintf "%sTmBinaryOp<%s>(%s\n%s\n%s)" indent
-        (string_of_tm_info info) (string_of_binary_op op)
-        (desc_string_of_term_indent next_indent t1)
-        (desc_string_of_term_indent next_indent t2)
   | TmIdent (info, ident) ->
       Printf.sprintf "%sTmIdent<%s>(%s)" indent (string_of_tm_info info) ident
 
