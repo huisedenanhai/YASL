@@ -99,6 +99,11 @@ let get_token buf tm_info =
       "[0-9]+\\(\\.[0-9]+\\)?";
       "[a-zA-Z_][a-zA-Z_0-9]*";
       "\\->";
+      "==";
+      "<=";
+      ">=";
+      "<";
+      ">";
       "\\[";
       "\\]";
       "[-\\+\\*/]";
@@ -187,9 +192,62 @@ let create_tm_atom info v =
   in
   TmAtom (info, v)
 
-let parse_term tks = (TmAtom (init_tm_info, FloatLiteral 1.0), tks)
+let binary_ops = [ [ "<"; ">"; "<="; ">="; "==" ]; [ "+"; "-" ]; [ "*"; "/" ] ]
 
-let parse_tm_abs info name tks =
+let get_op_pred op =
+  let rec impl ops i =
+    match ops with
+    | [] -> 1
+    | hd :: tl -> if List.exists (fun s -> s = op) hd then i else impl tl (i + 1)
+  in
+  impl binary_ops 2
+
+let is_binary_op str = List.flatten binary_ops |> List.exists (fun s -> s = str)
+
+let rec resolve_tm_stack tm_stk pred =
+  match tm_stk with
+  | (op, tm) :: tl when List.length tl >= 1 -> (
+      let op_pred = get_op_pred op in
+      if op_pred <= pred then tm_stk
+      else
+        let tm_stk = resolve_tm_stack tm_stk pred in
+        match tm_stk with
+        | (prev_op, prev_tm) :: tl ->
+            let info = get_tm_info tm in
+            let composite_tm =
+              try
+                let op = binary_op_of_string op in
+                TmBinaryOp (info, op, prev_tm, tm)
+              with Not_found -> TmApp (info, prev_tm, tm)
+            in
+            (prev_op, composite_tm) :: tl
+        | _ -> raise (ParseError "fatal resolve term stack. should not happen"))
+  | _ -> tm_stk
+
+let rec parse_tm_stack tm_stk tks =
+  let is_stop_symbol str =
+    keywords @ [ ")"; "]"; "}"; "," ] |> List.exists (fun s -> s = str)
+  in
+  let parse_op op tl =
+    let tm, tl = parse_single_term tl in
+    let tm_stk = resolve_tm_stack tm_stk (get_op_pred op) in
+    parse_tm_stack ((op, tm) :: tm_stk) tl
+  in
+  let finish () =
+    let _, tm = List.hd (resolve_tm_stack tm_stk 0) in
+    (tm, tks)
+  in
+  match tks with
+  | (_, stop) :: _ when is_stop_symbol stop -> finish ()
+  | (_, op) :: tl when is_binary_op op -> parse_op op tl
+  | [] -> finish ()
+  | tl -> parse_op "" tl
+
+and parse_term tks =
+  let tm, tl = parse_single_term tks in
+  parse_tm_stack [ ("", tm) ] tl
+
+and parse_tm_abs info name tks =
   let ty, tl = parse_plain_type tks in
   match tl with
   | (_, ".") :: tl ->
@@ -197,7 +255,7 @@ let parse_tm_abs info name tks =
       (TmAbs (info, name, ty, tm), tl)
   | _ -> raise_parse_err info "function expect body"
 
-let parse_tm_let info name tks =
+and parse_tm_let info name tks =
   let t1, tl = parse_term tks in
   match tl with
   | (_, "in") :: tl ->
@@ -205,7 +263,7 @@ let parse_tm_let info name tks =
       (TmLet (info, name, t1, t2), tl)
   | _ -> raise_parse_err info "expect 'in' for let binding"
 
-let parse_tm_if info tks =
+and parse_tm_if info tks =
   let t1, tl = parse_term tks in
   match tl with
   | (_, "then") :: tl -> (
@@ -217,7 +275,7 @@ let parse_tm_if info tks =
       | _ -> raise_parse_err info "expect 'else' for if clause")
   | _ -> raise_parse_err info "expect 'then' for if clause"
 
-let parse_tm_loop info tks =
+and parse_tm_loop info tks =
   let t1, tl = parse_term tks in
   match tl with
   | (_, "in") :: tl ->
@@ -225,7 +283,7 @@ let parse_tm_loop info tks =
       (TmLoop (info, t1, t2), tl)
   | _ -> raise_parse_err info "expect 'in' for loop clause"
 
-let rec parse_tm_tuple info = function
+and parse_tm_tuple info = function
   | (_, "]") :: tl -> ([], tl)
   | tl -> (
       let tm, tl = parse_term tl in
@@ -233,15 +291,16 @@ let rec parse_tm_tuple info = function
       | (info, ",") :: tl ->
           let tms, tl = parse_tm_tuple info tl in
           (tm :: tms, tl)
+      | (_, "]") :: tl -> ([ tm ], tl)
       | _ -> raise_parse_err info "invalid tuple")
 
-let parse_kv_pair = function
+and parse_kv_pair = function
   | (_, label) :: (_, "=") :: tl ->
       let tm, tl = parse_term tl in
       ((label, tm), tl)
   | tl -> raise_parse_err_tks tl "expect key-value pair"
 
-let rec parse_kv_list = function
+and parse_kv_list = function
   | (_, "}") :: tl -> ([], tl)
   | tl -> (
       let kv, tl = parse_kv_pair tl in
@@ -249,9 +308,10 @@ let rec parse_kv_list = function
       | (_, ",") :: tl ->
           let kvs, tl = parse_kv_list tl in
           (kv :: kvs, tl)
+      | (_, "}") :: tl -> ([ kv ], tl)
       | tl -> raise_parse_err_tks tl "invalid key-value list")
 
-let parse_single_element_term = function
+and parse_single_element_term = function
   | (info, v) :: tl when is_literal v -> (create_tm_atom info v, tl)
   | (info, "fn") :: (_, name) :: (_, ":") :: tl when is_ident name ->
       parse_tm_abs info name tl
@@ -278,7 +338,7 @@ let parse_single_element_term = function
       | _ -> (TmIdent (info, ident), tl))
   | tl -> raise_parse_err_tks tl "expect single term"
 
-let rec decorate_accessor tm tl =
+and decorate_accessor tm tl =
   match tl with
   | (_, ".") :: (info, label) :: tl when is_ident label ->
       decorate_accessor (TmRecordAccess (info, tm, label)) tl
@@ -288,9 +348,15 @@ let rec decorate_accessor tm tl =
         tl
   | _ -> (tm, tl)
 
-let parse_sigle_term tks =
+and parse_single_decorated_element_term tks =
   let tm, tl = parse_single_element_term tks in
   decorate_accessor tm tl
+
+and parse_single_term = function
+  | (info, "-") :: tl ->
+      let tm, tl = parse_single_decorated_element_term tl in
+      (TmMinus (info, tm), tl)
+  | tl -> parse_single_decorated_element_term tl
 
 let rec parse_toplevel = function
   | [] -> []
@@ -303,10 +369,10 @@ let rec parse_toplevel = function
   | (info, "type") :: (_, name) :: tks when is_ident name ->
       let decl, tks = parse_type_declare name tks in
       TopTmTyDeclare (info, decl) :: parse_toplevel tks
-  | (info, "let") :: (_, name) :: tks when is_ident name ->
+  | (info, "let") :: (_, name) :: (_, "=") :: tks when is_ident name ->
       let tm, tks = parse_term tks in
       TopTmLet (info, name, tm) :: parse_toplevel tks
-  | (info, "entry") :: (_, name) :: tks when is_ident name ->
+  | (info, "entry") :: (_, name) :: (_, "=") :: tks when is_ident name ->
       let tm, tks = parse_term tks in
       TopTmEntry (info, name, tm) :: parse_toplevel tks
   | (info, _) :: _ -> raise_parse_err info "invalid top level declare"

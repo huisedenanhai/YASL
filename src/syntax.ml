@@ -53,13 +53,41 @@ let rec desc_string_of_type = function
         (desc_string_of_plain_ty pt)
         id (desc_string_of_type dt)
 
-type binary_op = BOpAdd | BOpMinus | BOpDiv | BOpMul
+type binary_op =
+  | BOpAdd
+  | BOpMinus
+  | BOpDiv
+  | BOpMul
+  | BOpLess
+  | BOpGreater
+  | BOpLessEq
+  | BOpGreaterEQ
+  | BOpEq
 
 let string_of_binary_op = function
   | BOpAdd -> "+"
   | BOpMinus -> "-"
   | BOpDiv -> "/"
   | BOpMul -> "*"
+  | BOpLess -> "<"
+  | BOpGreater -> ">"
+  | BOpLessEq -> "<="
+  | BOpGreaterEQ -> ">="
+  | BOpEq -> "=="
+
+let binary_op_of_string str =
+  [
+    ("+", BOpAdd);
+    ("-", BOpMinus);
+    ("/", BOpDiv);
+    ("*", BOpMul);
+    ("<", BOpLess);
+    (">", BOpGreater);
+    ("<=", BOpLessEq);
+    (">=", BOpGreaterEQ);
+    ("==", BOpEq);
+  ]
+  |> List.assoc str
 
 type ty_declare =
   | TyDeclTuple of string * plain_ty list
@@ -98,6 +126,22 @@ type term =
   | TmBinaryOp of tm_info * binary_op * term * term
   | TmIdent of tm_info * string
 
+let get_tm_info = function
+  | TmAtom (info, _) -> info
+  | TmAbs (info, _, _, _) -> info
+  | TmApp (info, _, _) -> info
+  | TmLet (info, _, _, _) -> info
+  | TmIf (info, _, _, _) -> info
+  | TmLoop (info, _, _) -> info
+  | TmTuple (info, _) -> info
+  | TmNamedTuple (info, _, _) -> info
+  | TmTupleAccess (info, _, _) -> info
+  | TmRecord (info, _, _) -> info
+  | TmRecordAccess (info, _, _) -> info
+  | TmMinus (info, _) -> info
+  | TmBinaryOp (info, _, _, _) -> info
+  | TmIdent (info, _) -> info
+
 let rec desc_string_of_term_indent indent tm =
   let next_indent = indent ^ "  " in
   match tm with
@@ -134,16 +178,16 @@ let rec desc_string_of_term_indent indent tm =
         |> List.map (fun t -> desc_string_of_term_indent next_indent t)
         |> String.concat ",\n"
       in
-      Printf.sprintf "%sTmTuple<%s>[\n%s]" indent (string_of_tm_info info)
-        tms_desc
+      Printf.sprintf "%sTmTuple<%s>[\n%s\n%s]" indent (string_of_tm_info info)
+        indent tms_desc
   | TmNamedTuple (info, name, tms) ->
       let tms_desc =
         tms
         |> List.map (fun t -> desc_string_of_term_indent next_indent t)
         |> String.concat ",\n"
       in
-      Printf.sprintf "%sTmNamedTuple<%s>(%s)[\n%s]" indent
-        (string_of_tm_info info) name tms_desc
+      Printf.sprintf "%sTmNamedTuple<%s>(%s)[\n%s\n%s]" indent
+        (string_of_tm_info info) name tms_desc indent
   | TmRecord (info, name, kts) ->
       let kts_desc =
         kts
@@ -152,18 +196,18 @@ let rec desc_string_of_term_indent indent tm =
                  (desc_string_of_term_indent (next_indent ^ "  ") tm))
         |> String.concat ",\n"
       in
-      Printf.sprintf "%sTmRecord<%s>(%s){\n%s}" indent (string_of_tm_info info)
-        name kts_desc
+      Printf.sprintf "%sTmRecord<%s>(%s){\n%s\n%s}" indent
+        (string_of_tm_info info) indent name kts_desc
   | TmTupleAccess (info, tm, index) ->
-      Printf.sprintf "%sTmTupleAccess<%s>(\n%s. %d)" indent
+      Printf.sprintf "%sTmTupleAccess<%s>(\n%s\n%s.%d)" indent
         (string_of_tm_info info)
         (desc_string_of_term_indent next_indent tm)
-        index
+        indent index
   | TmRecordAccess (info, tm, label) ->
-      Printf.sprintf "%sTmRecordAccess<%s>(\n%s. %s)" indent
+      Printf.sprintf "%sTmRecordAccess<%s>(\n%s\n%s.%s)" indent
         (string_of_tm_info info)
         (desc_string_of_term_indent next_indent tm)
-        label
+        indent label
   | TmMinus (info, tm) ->
       Printf.sprintf "%sTmMinus<%s>(\n%s)" indent (string_of_tm_info info)
         (desc_string_of_term_indent next_indent tm)
