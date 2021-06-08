@@ -2,4 +2,4 @@
 
 Yet Another Shading Language.
 
-A strong typed functional IR that compiles to GLSL.
+A strong typed functional(not really) IR that compiles to GLSL.

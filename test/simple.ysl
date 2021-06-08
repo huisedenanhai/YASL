@@ -23,6 +23,8 @@ extern cross: vec3 -> vec3
 
 let add = fn a: float. fn b: float. a + b
 
+let bv = true && 12 > 3 || 22.0 <= 1.0
+
 entry main = fn frag_coord: vec2. 
     let v = (1.0 + 1.0) * 2.0 + 2.0 * 3.0 - -10.0 in
     let n = normalize_vec3 vec3[frag_coord.0, frag_coord.1, v] in

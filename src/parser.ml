@@ -99,6 +99,8 @@ let get_token buf tm_info =
       "[0-9]+\\(\\.[0-9]+\\)?";
       "[a-zA-Z_][a-zA-Z_0-9]*";
       "\\->";
+      "&&";
+      "||";
       "==";
       "<=";
       ">=";
@@ -213,30 +215,34 @@ let is_binary_op str =
   List.flatten binary_ops |> List.exists (fun s -> s = str)
 
 let rec resolve_tm_stack tm_stk pred =
-  match tm_stk with
-  | (op, info, tm) :: tl when List.length tl >= 1 -> (
-      let op_pred = get_op_pred op in
-      if op_pred <= pred then tm_stk
-      else
-        let tm_stk = resolve_tm_stack tl pred in
-        match tm_stk with
-        | (prev_op, prev_info, prev_tm) :: tl ->
-            let composite_tm =
-              if is_binary_op op then
-                TmOp (info, op, TmTuple (info, [ prev_tm; tm ]))
-              else TmApp (info, prev_tm, tm)
-            in
-            (prev_op, prev_info, composite_tm) :: tl
-        | _ ->
-            raise (ParseError "fatal resolve term stack. should not happen"))
-  | _ -> tm_stk
-
-let rec resolve_tm_stack_all tm_stk =
+  let rec resolve_tm_stack_one tm_stk pred =
+    match tm_stk with
+    | (op, info, tm) :: tl when List.length tl >= 1 -> (
+        let op_pred = get_op_pred op in
+        if op_pred < pred then tm_stk
+        else
+          let tm_stk = resolve_tm_stack_one tl pred in
+          match tm_stk with
+          | (prev_op, prev_info, prev_tm) :: tl ->
+              let composite_tm =
+                if is_binary_op op then
+                  TmOp (info, op, TmTuple (info, [ prev_tm; tm ]))
+                else TmApp (info, prev_tm, tm)
+              in
+              (prev_op, prev_info, composite_tm) :: tl
+          | _ ->
+              raise
+                (ParseError "fatal resolve term stack. should not happen"))
+    | _ -> tm_stk
+  in
   if List.length tm_stk <= 1 then tm_stk
   else
     let op, _, _ = List.hd tm_stk in
-    let pred = get_op_pred op in
-    resolve_tm_stack_all (resolve_tm_stack tm_stk (pred - 1))
+    let last_pred = get_op_pred op in
+    if last_pred <= pred then tm_stk
+    else resolve_tm_stack (resolve_tm_stack_one tm_stk last_pred) pred
+
+let resolve_tm_stack_all tm_stk = resolve_tm_stack tm_stk 0
 
 let rec parse_tm_stack tm_stk tks =
   let is_stop_symbol str =
