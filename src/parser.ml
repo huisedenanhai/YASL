@@ -192,17 +192,20 @@ let create_tm_atom info v =
   in
   TmAtom (info, v)
 
-let binary_ops = [ [ "<"; ">"; "<="; ">="; "==" ]; [ "+"; "-" ]; [ "*"; "/" ] ]
+let binary_ops =
+  [ [ "<"; ">"; "<="; ">="; "==" ]; [ "+"; "-" ]; [ "*"; "/" ] ]
 
 let get_op_pred op =
   let rec impl ops i =
     match ops with
     | [] -> 1
-    | hd :: tl -> if List.exists (fun s -> s = op) hd then i else impl tl (i + 1)
+    | hd :: tl ->
+        if List.exists (fun s -> s = op) hd then i else impl tl (i + 1)
   in
   impl binary_ops 2
 
-let is_binary_op str = List.flatten binary_ops |> List.exists (fun s -> s = str)
+let is_binary_op str =
+  List.flatten binary_ops |> List.exists (fun s -> s = str)
 
 let rec resolve_tm_stack tm_stk pred =
   match tm_stk with
@@ -219,7 +222,8 @@ let rec resolve_tm_stack tm_stk pred =
               else TmApp (info, prev_tm, tm)
             in
             (prev_op, prev_info, composite_tm) :: tl
-        | _ -> raise (ParseError "fatal resolve term stack. should not happen"))
+        | _ ->
+            raise (ParseError "fatal resolve term stack. should not happen"))
   | _ -> tm_stk
 
 let rec resolve_tm_stack_all tm_stk =

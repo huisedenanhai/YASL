@@ -52,7 +52,9 @@ let info_inc_line info = { info with line = info.line + 1; column = 1 }
 
 let string_of_tm_info info =
   let ty_desc =
-    match info.ty with None -> "Unknown" | Some t -> desc_string_of_type t
+    match info.ty with
+    | None -> "Unknown"
+    | Some t -> desc_string_of_type t
   in
   Printf.sprintf "line: %d, column: %d, ty: %s" info.line info.column ty_desc
 
@@ -114,8 +116,8 @@ let rec desc_string_of_term_indent indent tm =
       Printf.sprintf "%sTmAtom<%s>(%s)" indent (string_of_tm_info info)
         (desc_string_of_atomic_value av)
   | TmAbs (info, name, ty, tm) ->
-      Printf.sprintf "%sTmAbs<%s>(%s: %s,\n%s)" indent (string_of_tm_info info)
-        name
+      Printf.sprintf "%sTmAbs<%s>(%s: %s,\n%s)" indent
+        (string_of_tm_info info) name
         (desc_string_of_plain_ty ty)
         (desc_string_of_term_indent next_indent tm)
   | TmApp (info, t1, t2) ->
@@ -137,7 +139,8 @@ let rec desc_string_of_term_indent indent tm =
         indent
         (desc_string_of_term_indent next_indent t3)
   | TmLoop (info, t1, t2) ->
-      Printf.sprintf "%sTmLoop<%s>(\n%s,\n%s)" indent (string_of_tm_info info)
+      Printf.sprintf "%sTmLoop<%s>(\n%s,\n%s)" indent
+        (string_of_tm_info info)
         (desc_string_of_term_indent next_indent t1)
         (desc_string_of_term_indent next_indent t2)
   | TmTuple (info, tms) ->
@@ -146,8 +149,8 @@ let rec desc_string_of_term_indent indent tm =
         |> List.map (fun t -> desc_string_of_term_indent next_indent t)
         |> String.concat ",\n"
       in
-      Printf.sprintf "%sTmTuple<%s>[\n%s\n%s]" indent (string_of_tm_info info)
-        tms_desc indent
+      Printf.sprintf "%sTmTuple<%s>[\n%s\n%s]" indent
+        (string_of_tm_info info) tms_desc indent
   | TmNamedTuple (info, name, tms) ->
       let tms_desc =
         tms
@@ -180,7 +183,8 @@ let rec desc_string_of_term_indent indent tm =
       Printf.sprintf "%sTmOp<%s>(%s\n%s)" indent (string_of_tm_info info) op
         (desc_string_of_term_indent next_indent tm)
   | TmIdent (info, ident) ->
-      Printf.sprintf "%sTmIdent<%s>(%s)" indent (string_of_tm_info info) ident
+      Printf.sprintf "%sTmIdent<%s>(%s)" indent (string_of_tm_info info)
+        ident
 
 let desc_string_of_term tm = desc_string_of_term_indent "" tm
 
