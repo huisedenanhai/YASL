@@ -150,8 +150,6 @@ and parse_tuple_type = function
       | (_, "]") :: tl -> ([ ty ], tl)
       | (info, _) :: _ -> raise_parse_err info "invalid tuple type")
 
-let id_of_tm_info info = (info.line * 100000) + info.column
-
 let rec parse_type tks =
   let pt, tl = parse_plain_type tks in
   match tl with
@@ -193,7 +191,14 @@ let create_tm_atom info v =
   TmAtom (info, v)
 
 let binary_ops =
-  [ [ "<"; ">"; "<="; ">="; "==" ]; [ "+"; "-" ]; [ "*"; "/" ] ]
+  [
+    [ "||" ];
+    [ "&&" ];
+    [ "=="; "!=" ];
+    [ "<"; ">"; "<="; ">=" ];
+    [ "+"; "-" ];
+    [ "*"; "/" ];
+  ]
 
 let get_op_pred op =
   let rec impl ops i =

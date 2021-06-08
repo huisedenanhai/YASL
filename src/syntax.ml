@@ -16,6 +16,14 @@ type plain_ty =
   | TyInt
   | TyBool
 
+type ty_declare =
+  | TyDeclTuple of string * plain_ty list
+  | TyDeclRecord of string * (string * plain_ty) list
+
+let name_of_ty_decl = function
+  | TyDeclTuple (name, _) -> name
+  | TyDeclRecord (name, _) -> name
+
 let rec desc_string_of_plain_ty = function
   | TyCustom name -> Printf.sprintf "TyCustom(%s)" name
   | TyTuple ts ->
@@ -29,7 +37,21 @@ let rec desc_string_of_plain_ty = function
   | TyInt -> "TyInt"
   | TyBool -> "TyBool"
 
+let rec is_same_plain_ty pt1 pt2 =
+  match (pt1, pt2) with
+  | TyCustom n1, TyCustom n2 -> n1 = n2
+  | TyTuple ts1, TyTuple ts2 ->
+      List.for_all2 (fun t1 t2 -> is_same_plain_ty t1 t2) ts1 ts2
+  | TyFloat, TyFloat -> true
+  | TyInt, TyInt -> true
+  | TyBool, TyBool -> true
+  | _ -> false
+
 type ty = TyPlain of plain_ty | TyArrow of int * plain_ty * ty
+
+let is_plain_ty = function
+  | TyPlain _ -> true
+  | _ -> false
 
 let rec desc_string_of_type = function
   | TyPlain pt -> desc_string_of_plain_ty pt
@@ -37,6 +59,13 @@ let rec desc_string_of_type = function
       Printf.sprintf "%s <%d>-> %s"
         (desc_string_of_plain_ty pt)
         id (desc_string_of_type dt)
+
+let rec is_same_ty ty1 ty2 =
+  match (ty1, ty2) with
+  | TyPlain pt1, TyPlain pt2 -> is_same_plain_ty pt1 pt2
+  | TyArrow (id1, st1, dt1), TyArrow (id2, st2, dt2) ->
+      id1 = id2 && is_same_plain_ty st1 st2 && is_same_ty dt1 dt2
+  | _ -> false
 
 type tm_info = { line : int; column : int; ty : ty option }
 
@@ -50,6 +79,10 @@ let info_inc_column info = info_inc_column_n info 1
 
 let info_inc_line info = { info with line = info.line + 1; column = 1 }
 
+let info_set_type info ty = { info with ty = Some ty }
+
+let id_of_tm_info info = (info.line * 100000) + info.column
+
 let string_of_tm_info info =
   let ty_desc =
     match info.ty with
@@ -57,10 +90,6 @@ let string_of_tm_info info =
     | Some t -> desc_string_of_type t
   in
   Printf.sprintf "line: %d, column: %d, ty: %s" info.line info.column ty_desc
-
-type ty_declare =
-  | TyDeclTuple of string * plain_ty list
-  | TyDeclRecord of string * (string * plain_ty) list
 
 let desc_string_of_ty_declare = function
   | TyDeclTuple (name, ts) ->
@@ -206,8 +235,8 @@ let desc_string_of_toplevel_term = function
       Printf.sprintf "TyDeclare<%s>(%s)" (string_of_tm_info info)
         (desc_string_of_ty_declare decl)
   | TopTmLet (info, name, tm) ->
-      Printf.sprintf "Let<%s>(%s, %s)" (string_of_tm_info info) name
-        (desc_string_of_term tm)
+      Printf.sprintf "Let<%s>(%s =\n%s)" (string_of_tm_info info) name
+        (desc_string_of_term_indent "  " tm)
   | TopTmEntry (info, name, tm) ->
-      Printf.sprintf "Entry<%s>(%s, %s)" (string_of_tm_info info) name
-        (desc_string_of_term tm)
+      Printf.sprintf "Entry<%s>(%s =\n%s)" (string_of_tm_info info) name
+        (desc_string_of_term_indent "  " tm)

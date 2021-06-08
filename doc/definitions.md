@@ -60,6 +60,8 @@ Operators are overloaded. Operators are not a term by its own. Our syntax also a
 
 Unary and binary operators are merged into TmOp in our implementation for simplicity.
 
+Variable names can be shadowed, while type names can not.
+
 ## Typing
 
 ```
