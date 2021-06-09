@@ -22,6 +22,28 @@ let binary_op_type_simple ty = binary_op_type ty ty ty
 
 let binary_op_type_one arg_ty ret = binary_op_type arg_ty arg_ty ret
 
+let rec repeat_n elem n = if n = 0 then [] else elem :: repeat_n elem (n - 1)
+
+let builtin_vec_types prefix elem_ty =
+  [ 2; 3; 4 ]
+  |> List.map (fun n ->
+         let name = Printf.sprintf "%svec%d" prefix n in
+         (name, TyDeclTuple (name, repeat_n elem_ty n)))
+
+let builtin_matrix_types prefix =
+  [ 2; 3; 4 ]
+  |> List.map (fun a -> [ 2; 3; 4 ] |> List.map (fun b -> (a, b)))
+  |> List.flatten
+  |> List.map (fun (a, b) ->
+         let name =
+           if a = b then Printf.sprintf "%smat%d" prefix a
+           else Printf.sprintf "%smat%dx%d" prefix a b
+         in
+         ( name,
+           TyDeclTuple
+             (name, repeat_n (TyCustom (Printf.sprintf "%svec%d" prefix b)) a)
+         ))
+
 let builtin_ctx =
   {
     ops =
@@ -71,7 +93,11 @@ let builtin_ctx =
         ("*", [ binary_op_type_simple TyFloat; binary_op_type_simple TyInt ]);
         ("/", [ binary_op_type_simple TyFloat; binary_op_type_simple TyInt ]);
       ];
-    ty_decls = [];
+    ty_decls =
+      builtin_vec_types "" TyFloat
+      @ builtin_vec_types "i" TyInt
+      @ builtin_matrix_types ""
+      @ builtin_matrix_types "i";
     var_ty = [];
   }
 
@@ -307,13 +333,50 @@ and type_tm_list ctx tms =
                ("elements in tuple should have plain types. found "
                ^ desc_string_of_type ty))
 
+let rec check_plain_type_valid info ctx = function
+  | TyCustom name ->
+      let _ = look_up_ty_declare info ctx name in
+      ()
+  | TyTuple tys -> List.iter (fun t -> check_plain_type_valid info ctx t) tys
+  | _ -> ()
+
+let rec check_type_valid info ctx = function
+  | TyPlain plain_ty -> check_plain_type_valid info ctx plain_ty
+  | TyArrow (_, st, dt) ->
+      check_plain_type_valid info ctx st;
+      check_type_valid info ctx dt
+
+let check_ty_declare_valid info ctx = function
+  | TyDeclTuple (_, tys) ->
+      List.iter (fun t -> check_plain_type_valid info ctx t) tys
+  | TyDeclRecord (_, kts) ->
+      let rec check_kts checked = function
+        | [] -> ()
+        | (k, t) :: tl ->
+            if List.mem_assoc k checked then
+              raise_type_err info
+                (Printf.sprintf "duplicated key '%s' in type declare" k)
+            else (
+              check_plain_type_valid info ctx t;
+              check_kts ((k, t) :: checked) tl)
+      in
+      check_kts [] kts
+
 let type_toplevel_tm ctx tp_tm =
   match tp_tm with
-  | TopTmUnfiorm (_, name, plain_ty) ->
-      (ctx_add_var ctx name (TyPlain plain_ty), tp_tm)
-  | TopTmExtern (_, name, ty) -> (ctx_add_var ctx name ty, tp_tm)
+  | TopTmUnfiorm (info, name, plain_ty) ->
+      check_plain_type_valid info ctx plain_ty;
+      let ty = TyPlain plain_ty in
+      ( ctx_add_var ctx name ty,
+        TopTmUnfiorm (info_set_type info ty, name, plain_ty) )
+  | TopTmExtern (info, name, ty) ->
+      check_type_valid info ctx ty;
+      (ctx_add_var ctx name ty, TopTmExtern (info_set_type info ty, name, ty))
   | TopTmTyDeclare (info, ty_decl) ->
-      (ctx_add_ty_decl info ctx ty_decl, tp_tm)
+      check_ty_declare_valid info ctx ty_decl;
+      let ty = TyPlain (TyCustom (name_of_ty_decl ty_decl)) in
+      ( ctx_add_ty_decl info ctx ty_decl,
+        TopTmTyDeclare (info_set_type info ty, ty_decl) )
   | TopTmLet (info, name, tm) ->
       let tm, ty = type_tm ctx tm in
       (ctx_add_var ctx name ty, TopTmLet (info_set_type info ty, name, tm))
