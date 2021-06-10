@@ -28,25 +28,23 @@ v :=    AtomicValues
         TyName[v, ..., v]
 
 T :=    PlainType
-        T <'c>-> T
+        PlainType <'c>-> T
 
 PlainType :=    TyName
                 [PlainType, ..., PlainType]
-                float
-                int
-                bool
 
 TypeDeclare :=  type TyName[PlainType, ... , PlainType]
                 type Tyname{li: PlainType, ..., lj: PlainType}
+                type Tyname;
 
 TopLevel := uniform name: PlainType
-            extern func_name: T -> T
+            extern func_name: PlainType -> T
             TypDeclare
             let name = t
             entry name = t
 ```
 
-`'c` in function type `T <'c>-> T` is auto generated function id, so each function has different type, which makes code gen simple, as calling context and behaviour are all deterministic for a function.
+`'c` in function type `PlainType <'c>-> T` is auto generated function id, so each function has different type, which makes code gen simple, as calling context and behaviour are all deterministic for a function.
 
 Users will not write any `'c`. If one writes `T1 -> T2` for type checking, he declares a template type with parameter `'c`, which will be instantiated later as `T1 <'c>-> T2`.
 

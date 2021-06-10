@@ -41,67 +41,81 @@ let builtin_matrix_types prefix =
          in
          ( name,
            TyDeclTuple
-             (name, repeat_n (TyCustom (Printf.sprintf "%svec%d" prefix b)) a)
+             (name, repeat_n (TyNamed (Printf.sprintf "%svec%d" prefix b)) a)
          ))
+
+let ty_bool = TyNamed "bool"
+
+let ty_int = TyNamed "int"
+
+let ty_float = TyNamed "float"
+
+let builtin_primitive_tys =
+  [ "bool"; "int"; "float" ] |> List.map (fun n -> (n, TyDeclOpaque n))
 
 let builtin_ctx =
   {
     ops =
       [
-        ("&&", [ binary_op_type_simple TyBool ]);
-        ("||", [ binary_op_type_simple TyBool ]);
+        ("&&", [ binary_op_type_simple ty_bool ]);
+        ("||", [ binary_op_type_simple ty_bool ]);
         ( "<",
           [
-            binary_op_type_one TyFloat TyBool;
-            binary_op_type_one TyInt TyBool;
+            binary_op_type_one ty_float ty_bool;
+            binary_op_type_one ty_int ty_bool;
           ] );
         ( ">",
           [
-            binary_op_type_one TyFloat TyBool;
-            binary_op_type_one TyInt TyBool;
+            binary_op_type_one ty_float ty_bool;
+            binary_op_type_one ty_int ty_bool;
           ] );
         ( "<=",
           [
-            binary_op_type_one TyFloat TyBool;
-            binary_op_type_one TyInt TyBool;
+            binary_op_type_one ty_float ty_bool;
+            binary_op_type_one ty_int ty_bool;
           ] );
         ( ">=",
           [
-            binary_op_type_one TyFloat TyBool;
-            binary_op_type_one TyInt TyBool;
+            binary_op_type_one ty_float ty_bool;
+            binary_op_type_one ty_int ty_bool;
           ] );
         ( "==",
           [
-            binary_op_type_one TyFloat TyBool;
-            binary_op_type_one TyInt TyBool;
-            binary_op_type_one TyBool TyBool;
+            binary_op_type_one ty_float ty_bool;
+            binary_op_type_one ty_int ty_bool;
+            binary_op_type_one ty_bool ty_bool;
           ] );
         ( "!=",
           [
-            binary_op_type_one TyFloat TyBool;
-            binary_op_type_one TyInt TyBool;
-            binary_op_type_one TyBool TyBool;
+            binary_op_type_one ty_float ty_bool;
+            binary_op_type_one ty_int ty_bool;
+            binary_op_type_one ty_bool ty_bool;
           ] );
-        ("+", [ binary_op_type_simple TyFloat; binary_op_type_simple TyInt ]);
+        ( "+",
+          [ binary_op_type_simple ty_float; binary_op_type_simple ty_int ] );
         ( "-",
           [
-            unary_op_type_simple TyFloat;
-            unary_op_type_simple TyInt;
-            binary_op_type_simple TyFloat;
-            binary_op_type_simple TyInt;
+            unary_op_type_simple ty_float;
+            unary_op_type_simple ty_int;
+            binary_op_type_simple ty_float;
+            binary_op_type_simple ty_int;
           ] );
-        ("*", [ binary_op_type_simple TyFloat; binary_op_type_simple TyInt ]);
-        ("/", [ binary_op_type_simple TyFloat; binary_op_type_simple TyInt ]);
+        ( "*",
+          [ binary_op_type_simple ty_float; binary_op_type_simple ty_int ] );
+        ( "/",
+          [ binary_op_type_simple ty_float; binary_op_type_simple ty_int ] );
       ];
     ty_decls =
-      builtin_vec_types "" TyFloat
-      @ builtin_vec_types "i" TyInt
+      builtin_primitive_tys
+      @ builtin_vec_types "" ty_float
+      @ builtin_vec_types "i" ty_int
       @ builtin_matrix_types ""
       @ builtin_matrix_types "i";
     var_ty = [];
   }
 
-let ctx_add_var ctx name ty = { ctx with var_ty = (name, ty) :: ctx.var_ty }
+let ctx_add_var ctx name ty =
+  if name = "_" then ctx else { ctx with var_ty = (name, ty) :: ctx.var_ty }
 
 let ctx_add_ty_decl info ctx ty_decl =
   let ty_decls = ctx.ty_decls in
@@ -157,9 +171,9 @@ let rec type_tm ctx tm =
       let ty =
         TyPlain
           (match v with
-          | IntLiteral _ -> TyInt
-          | FloatLiteral _ -> TyFloat
-          | BoolLiteral _ -> TyBool)
+          | IntLiteral _ -> ty_int
+          | FloatLiteral _ -> ty_float
+          | BoolLiteral _ -> ty_bool)
       in
       (TmAtom (info_set_type info ty, v), ty)
   | TmAbs (info, name, pt, tm) ->
@@ -182,7 +196,7 @@ let rec type_tm ctx tm =
       let tc, ty_cond = type_tm ctx tc in
       let t1, ty1 = type_tm ctx t1 in
       let t2, ty2 = type_tm ctx t2 in
-      if is_same_ty ty_cond (TyPlain TyBool) then
+      if is_same_ty ty_cond (TyPlain ty_bool) then
         if is_same_ty ty1 ty2 then
           let ty = ty1 in
           (TmIf (info_set_type info ty, tc, t1, t2), ty)
@@ -202,14 +216,15 @@ let rec type_tm ctx tm =
       let ty = check_apply info ty2 ty1 in
       (* constrain on the return type *)
       match (ty, ty1) with
-      | TyPlain (TyTuple [ TyBool; ty ]), TyPlain ty'
+      | TyPlain (TyTuple [ TyNamed "bool"; ty ]), TyPlain ty'
         when is_same_plain_ty ty ty' ->
           let ty = TyPlain ty in
           (TmLoop (info_set_type info ty, t1, t2), ty)
       | _ ->
           raise_type_err info
             (Printf.sprintf
-               "loop body should return TyTuple[TyBool, %s], but found %s"
+               "loop body should return TyTuple[TyNamed(bool), %s], but \
+                found %s"
                (desc_string_of_type ty1) (desc_string_of_type ty)))
   | TmTuple (info, tms) ->
       let tms, tys = List.split (type_tm_list ctx tms) in
@@ -229,7 +244,7 @@ let rec type_tm ctx tm =
                      (desc_string_of_plain_ty ty1)
                      (desc_string_of_plain_ty ty2)))
             decl_tys tm_tys;
-          let ty = TyPlain (TyCustom name) in
+          let ty = TyPlain (TyNamed name) in
           let tms, _ = List.split tm_tys in
           (TmNamedTuple (info_set_type info ty, name, tms), ty)
       | _ ->
@@ -253,7 +268,7 @@ let rec type_tm ctx tm =
       in
       match ty with
       | TyPlain (TyTuple tys) -> do_access tys
-      | TyPlain (TyCustom name) -> (
+      | TyPlain (TyNamed name) -> (
           match look_up_ty_declare info ctx name with
           | TyDeclTuple (_, tys) -> do_access tys
           | _ -> fail ())
@@ -288,7 +303,7 @@ let rec type_tm ctx tm =
                   (Printf.sprintf "key %s not initialized for record %s"
                      decl_lb name))
             decl_kts;
-          let ty = TyPlain (TyCustom name) in
+          let ty = TyPlain (TyNamed name) in
           let tms, _ = List.split tm_tys in
           (TmRecord (info_set_type info ty, name, List.combine lbs tms), ty)
       | _ ->
@@ -301,7 +316,7 @@ let rec type_tm ctx tm =
           ("expect record, found %s" ^ desc_string_of_type ty)
       in
       match ty with
-      | TyPlain (TyCustom name) -> (
+      | TyPlain (TyNamed name) -> (
           let ty_decl = look_up_ty_declare info ctx name in
           match ty_decl with
           | TyDeclRecord (_, kts) -> (
@@ -334,11 +349,10 @@ and type_tm_list ctx tms =
                ^ desc_string_of_type ty))
 
 let rec check_plain_type_valid info ctx = function
-  | TyCustom name ->
+  | TyNamed name ->
       let _ = look_up_ty_declare info ctx name in
       ()
   | TyTuple tys -> List.iter (fun t -> check_plain_type_valid info ctx t) tys
-  | _ -> ()
 
 let rec check_type_valid info ctx = function
   | TyPlain plain_ty -> check_plain_type_valid info ctx plain_ty
@@ -361,6 +375,7 @@ let check_ty_declare_valid info ctx = function
               check_kts ((k, t) :: checked) tl)
       in
       check_kts [] kts
+  | TyDeclOpaque _ -> ()
 
 let type_toplevel_tm ctx tp_tm =
   match tp_tm with
@@ -371,18 +386,26 @@ let type_toplevel_tm ctx tp_tm =
         TopTmUnfiorm (info_set_type info ty, name, plain_ty) )
   | TopTmExtern (info, name, ty) ->
       check_type_valid info ctx ty;
-      (ctx_add_var ctx name ty, TopTmExtern (info_set_type info ty, name, ty))
+      if is_arrow_ty ty then
+        ( ctx_add_var ctx name ty,
+          TopTmExtern (info_set_type info ty, name, ty) )
+      else raise_type_err info "extern var should have function type"
   | TopTmTyDeclare (info, ty_decl) ->
       check_ty_declare_valid info ctx ty_decl;
-      let ty = TyPlain (TyCustom (name_of_ty_decl ty_decl)) in
+      let ty = TyPlain (TyNamed (name_of_ty_decl ty_decl)) in
       ( ctx_add_ty_decl info ctx ty_decl,
         TopTmTyDeclare (info_set_type info ty, ty_decl) )
   | TopTmLet (info, name, tm) ->
       let tm, ty = type_tm ctx tm in
-      (ctx_add_var ctx name ty, TopTmLet (info_set_type info ty, name, tm))
+      if is_arrow_ty ty then
+        (ctx_add_var ctx name ty, TopTmLet (info_set_type info ty, name, tm))
+      else raise_type_err info "toplevel let should have function type"
   | TopTmEntry (info, name, tm) ->
       let tm, ty = type_tm ctx tm in
-      (ctx_add_var ctx name ty, TopTmEntry (info_set_type info ty, name, tm))
+      if is_arrow_ty ty then
+        ( ctx_add_var ctx name ty,
+          TopTmEntry (info_set_type info ty, name, tm) )
+      else raise_type_err info "entry should have function type"
 
 let rec type_toplevel ctx = function
   | [] -> []

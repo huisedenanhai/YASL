@@ -5,6 +5,8 @@ type Ray {
 
 type TT[float, vec2]
 type TMat[float, vec2, mat3x4]
+type TTT[float, [vec2, mat3x4]]
+type TTT2[float, [vec2, mat3x4, float]]
 
 uniform iResolution: vec3
 uniform iTime: float
@@ -14,12 +16,16 @@ uniform iMouse: vec4
 uniform iDate: vec4
 uniform iSampleRate: float
 
+uniform iTuple: [float, int, float]
+
 extern normalize_vec3: vec3 -> vec3
 extern cross: vec3 -> vec3
 
+type sample2D;
+
 let add = fn a: float. fn b: float. a + b
 
-let bv = true && 12 > 3 || 22.0 <= 1.0
+let bv = fn _: []. true && 12 > 3 || 22.0 <= 1.0
 
 entry main = fn frag_coord: vec2. 
     let v = (1.0 + 1.0) * 2.0 + 2.0 * 3.0 - -10.0 in

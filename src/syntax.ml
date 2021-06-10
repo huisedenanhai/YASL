@@ -9,48 +9,43 @@ let desc_string_of_atomic_value = function
   | BoolLiteral v ->
       Printf.sprintf "BoolLiteral(%s)" (if v then "true" else "false")
 
-type plain_ty =
-  | TyCustom of string
-  | TyTuple of plain_ty list
-  | TyFloat
-  | TyInt
-  | TyBool
+type plain_ty = TyNamed of string | TyTuple of plain_ty list
 
 type ty_declare =
   | TyDeclTuple of string * plain_ty list
   | TyDeclRecord of string * (string * plain_ty) list
+  | TyDeclOpaque of string
 
 let name_of_ty_decl = function
   | TyDeclTuple (name, _) -> name
   | TyDeclRecord (name, _) -> name
+  | TyDeclOpaque name -> name
 
 let rec desc_string_of_plain_ty = function
-  | TyCustom name -> Printf.sprintf "TyCustom(%s)" name
+  | TyNamed name -> name
   | TyTuple ts ->
       let ts_desc =
         ts
         |> List.map (fun pt -> desc_string_of_plain_ty pt)
         |> String.concat ", "
       in
-      Printf.sprintf "TyTuple[%s]" ts_desc
-  | TyFloat -> "TyFloat"
-  | TyInt -> "TyInt"
-  | TyBool -> "TyBool"
+      Printf.sprintf "[%s]" ts_desc
 
 let rec is_same_plain_ty pt1 pt2 =
   match (pt1, pt2) with
-  | TyCustom n1, TyCustom n2 -> n1 = n2
+  | TyNamed n1, TyNamed n2 -> n1 = n2
   | TyTuple ts1, TyTuple ts2 ->
       List.for_all2 (fun t1 t2 -> is_same_plain_ty t1 t2) ts1 ts2
-  | TyFloat, TyFloat -> true
-  | TyInt, TyInt -> true
-  | TyBool, TyBool -> true
   | _ -> false
 
 type ty = TyPlain of plain_ty | TyArrow of int * plain_ty * ty
 
 let is_plain_ty = function
   | TyPlain _ -> true
+  | _ -> false
+
+let is_arrow_ty = function
+  | TyArrow _ -> true
   | _ -> false
 
 let rec desc_string_of_type = function
@@ -107,6 +102,7 @@ let desc_string_of_ty_declare = function
         |> String.concat ", "
       in
       Printf.sprintf "TyDeclRecord(%s, {%s})" name kts_desc
+  | TyDeclOpaque name -> Printf.sprintf "TyDeclOpaque(%s)" name
 
 type term =
   | TmAtom of tm_info * atomic_value

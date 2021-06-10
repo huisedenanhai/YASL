@@ -110,6 +110,7 @@ let get_token buf tm_info =
       "\\]";
       "[-\\+\\*/]";
       "[=()\\.:,{}]";
+      ";";
     ]
     |> List.fold_left acc_result None
   with
@@ -130,13 +131,10 @@ let str_to_tokens str = split_tokens str init_tm_info
 
 let rec parse_plain_type = function
   | [] -> raise_parse_err_eof ()
-  | (_, "float") :: tl -> (TyFloat, tl)
-  | (_, "int") :: tl -> (TyInt, tl)
-  | (_, "bool") :: tl -> (TyBool, tl)
   | (_, "[") :: tl ->
       let tys, tl = parse_tuple_type tl in
       (TyTuple tys, tl)
-  | (_, name) :: tl when is_ident name -> (TyCustom name, tl)
+  | (_, name) :: tl when is_ident name -> (TyNamed name, tl)
   | (info, _) :: _ -> raise_parse_err info "invalid plain type"
 
 and parse_tuple_type = function
@@ -181,6 +179,7 @@ let parse_type_declare name = function
   | (_, "{") :: tl ->
       let kts, tl = parse_record_type tl in
       (TyDeclRecord (name, kts), tl)
+  | (_, ";") :: tl -> (TyDeclOpaque name, tl)
   | [] -> raise_parse_err_eof ()
   | (info, _) :: _ -> raise_parse_err info "invalid type declare"
 
