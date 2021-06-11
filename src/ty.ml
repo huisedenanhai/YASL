@@ -384,11 +384,11 @@ let type_toplevel_tm ctx tp_tm =
       let ty = TyPlain plain_ty in
       ( ctx_add_var ctx name ty,
         TopTmUnfiorm (info_set_type info ty, name, plain_ty) )
-  | TopTmExtern (info, name, ty) ->
+  | TopTmExtern (info, name, ty, target) ->
       check_type_valid info ctx ty;
       if is_arrow_ty ty then
         ( ctx_add_var ctx name ty,
-          TopTmExtern (info_set_type info ty, name, ty) )
+          TopTmExtern (info_set_type info ty, name, ty, target) )
       else raise_type_err info "extern var should have function type"
   | TopTmTyDeclare (info, ty_decl) ->
       check_ty_declare_valid info ctx ty_decl;

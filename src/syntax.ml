@@ -215,7 +215,7 @@ let desc_string_of_term tm = desc_string_of_term_indent "" tm
 
 type toplevel_term =
   | TopTmUnfiorm of tm_info * string * plain_ty
-  | TopTmExtern of tm_info * string * ty
+  | TopTmExtern of tm_info * string * ty * string
   | TopTmTyDeclare of tm_info * ty_declare
   | TopTmLet of tm_info * string * term
   | TopTmEntry of tm_info * string * term
@@ -224,9 +224,9 @@ let desc_string_of_toplevel_term = function
   | TopTmUnfiorm (info, name, ty) ->
       Printf.sprintf "Uniform<%s>(%s, %s)" (string_of_tm_info info) name
         (desc_string_of_plain_ty ty)
-  | TopTmExtern (info, name, ty) ->
-      Printf.sprintf "Extern<%s>(%s, %s)" (string_of_tm_info info) name
-        (desc_string_of_type ty)
+  | TopTmExtern (info, name, ty, target) ->
+      Printf.sprintf "Extern<%s>(%s, %s = %s)" (string_of_tm_info info) name
+        (desc_string_of_type ty) target
   | TopTmTyDeclare (info, decl) ->
       Printf.sprintf "TyDeclare<%s>(%s)" (string_of_tm_info info)
         (desc_string_of_ty_declare decl)

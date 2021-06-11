@@ -384,7 +384,12 @@ let rec parse_toplevel = function
       TopTmUnfiorm (info, name, ty) :: parse_toplevel tks
   | (info, "extern") :: (_, name) :: (_, ":") :: tks when is_ident name ->
       let ty, tks = parse_type tks in
-      TopTmExtern (info, name, ty) :: parse_toplevel tks
+      let target, tks =
+        match tks with
+        | (_, "=") :: (_, target) :: tks when is_ident target -> (target, tks)
+        | _ -> (name, tks)
+      in
+      TopTmExtern (info, name, ty, target) :: parse_toplevel tks
   | (info, "type") :: (_, name) :: tks when is_ident name ->
       let decl, tks = parse_type_declare name tks in
       TopTmTyDeclare (info, decl) :: parse_toplevel tks

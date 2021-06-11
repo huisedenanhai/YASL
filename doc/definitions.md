@@ -38,7 +38,8 @@ TypeDeclare :=  type TyName[PlainType, ... , PlainType]
                 type Tyname;
 
 TopLevel := uniform name: PlainType
-            extern func_name: PlainType -> T
+            extern func_name: PlainType -> T 
+            extern func_name: PlainType -> T = native_name
             TypDeclare
             let name = t
             entry name = t

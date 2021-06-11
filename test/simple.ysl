@@ -18,8 +18,8 @@ uniform iSampleRate: float
 
 uniform iTuple: [float, int, float]
 
-extern normalize_vec3: vec3 -> vec3
-extern cross: vec3 -> vec3
+extern normalize_vec3: vec3 -> vec3 = normalize
+extern cross: vec3 -> vec3 -> vec3
 
 type sample2D;
 
