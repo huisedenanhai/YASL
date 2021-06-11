@@ -6,7 +6,14 @@ type Ray {
 type TT[float, vec2]
 type TMat[float, vec2, mat3x4]
 type TTT[float, [vec2, mat3x4]]
-type TTT2[float, [vec2, mat3x4, float]]
+type TTT2[
+    float, 
+    [
+        vec2, mat3x4, 
+        [float, float],
+        [float, float],
+    ]
+]
 
 uniform iResolution: vec3
 uniform iTime: float

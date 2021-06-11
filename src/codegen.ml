@@ -1,5 +1,17 @@
 open Syntax
 
+type glsl_ctx = string list * (string * (string * ty)) list
+
+let ctx_add_glsl_struct_name ctx name =
+  let tns, nbt = ctx in
+  (name :: tns, nbt)
+
+let ctx_has_glsl_struct_name ctx name =
+  let tns, _ = ctx in
+  match List.find_opt (fun s -> s = name) tns with
+  | Some _ -> true
+  | None -> false
+
 let tuple_field_name n = Printf.sprintf "t%d" n
 
 let rec glsl_name_of_plain_ty = function
@@ -11,17 +23,19 @@ let rec glsl_name_of_plain_ty = function
 
 let glsl_name_of_ty = function
   | TyPlain pt -> glsl_name_of_plain_ty pt
-  | TyArrow (id, _, _) -> Printf.sprintf "Yasl__TArrow_%d" id
+  | TyArrow (id, _, _) ->
+      Printf.sprintf "Yasl__TArrow_%s"
+        (if id < 0 then "_" ^ string_of_int (-id) else string_of_int id)
 
 let glsl_struct name fields =
   Printf.sprintf "struct %s {\n%s\n};" name
     (fields
     |> List.map (fun (k, t) ->
-           Printf.sprintf "  %s %s;" (glsl_name_of_plain_ty t) k)
+           Printf.sprintf "  %s %s;" (glsl_name_of_ty t) k)
     |> String.concat "\n")
 
 let glsl_tuple_struct name tys =
-  let kts = List.mapi (fun i t -> (tuple_field_name i, t)) tys in
+  let kts = List.mapi (fun i t -> (tuple_field_name i, TyPlain t)) tys in
   glsl_struct name kts
 
 let auto_glsl_gen_name ty =
@@ -30,28 +44,38 @@ let auto_glsl_gen_name ty =
   | TyPlain (TyTuple tys) -> Some (glsl_name_of_plain_ty (TyTuple tys))
   | _ -> None
 
-let auto_glsl_gen_type = function
-  | TyArrow (_, _, _) -> ""
-  | TyPlain (TyTuple tys) ->
-      let name = glsl_name_of_plain_ty (TyTuple tys) in
-      glsl_tuple_struct name tys
-  | _ -> ""
-
-let ensure_auto_glsl_type_declare ctx ty =
+let rec ensure_auto_glsl_type_declare ctx ty =
   match auto_glsl_gen_name ty with
-  | Some name -> (
-      match List.find_opt (fun s -> s = name) ctx with
-      | Some _ -> (ctx, "")
-      | None -> (name :: ctx, auto_glsl_gen_type ty))
-  | None -> (ctx, "")
+  | Some name ->
+      if ctx_has_glsl_struct_name ctx name then (ctx, [])
+      else auto_glsl_gen_type name ctx ty
+  | None -> (ctx, [])
 
-let ensure_auto_glsl_type_declares ctx tys =
-  List.fold_left_map ensure_auto_glsl_type_declare ctx tys
+and auto_glsl_gen_type name ctx ty =
+  match ty with
+  | TyArrow _ ->
+      let _, nbt = ctx in
+      let _, kts = List.split nbt in
+      let _, tys = List.split kts in
+      let ctx, decls = ensure_auto_glsl_type_declares ctx tys in
+      (ctx_add_glsl_struct_name ctx name, decls @ [ glsl_struct name kts ])
+  | TyPlain (TyTuple tys) ->
+      let ctx, decls = ensure_auto_glsl_plain_type_declares ctx tys in
+      ( ctx_add_glsl_struct_name ctx name,
+        decls @ [ glsl_tuple_struct name tys ] )
+  | _ -> (ctx, [])
 
-let ensure_auto_glsl_plain_type_declares ctx tys =
-  tys
-  |> List.map (fun t -> TyPlain t)
-  |> List.fold_left_map ensure_auto_glsl_type_declare ctx
+and ensure_auto_glsl_type_declares ctx tys =
+  tys |> List.fold_left_map ensure_auto_glsl_type_declare ctx
+  |> fun (ctx, decls) -> (ctx, List.flatten decls)
+
+and ensure_auto_glsl_plain_type_declares ctx tys =
+  tys |> List.map (fun t -> TyPlain t) |> ensure_auto_glsl_type_declares ctx
+
+(* let glsl_function ctx arg arg_ty dst_ty = match dst_ty with | TyPlain
+   dst_ty -> (* handle tuple arg/return types *) let _, _ =
+   ensure_auto_glsl_plain_type_declares ctx [ arg_ty; dst_ty ] in () |
+   TyArrow _ -> () *)
 
 let gen_glsl_tp_tm emit_uniform ctx = function
   | TopTmUnfiorm (_, name, pt) ->
@@ -78,6 +102,7 @@ let gen_glsl_tp_tm emit_uniform ctx = function
           let ctx, auto_decls =
             ensure_auto_glsl_plain_type_declares ctx tys
           in
+          let kts = List.map (fun (k, t) -> (k, TyPlain t)) kts in
           (ctx, auto_decls @ [ glsl_struct name kts ])
       | TyDeclOpaque _ -> (ctx, []))
   | TopTmLet _ -> (ctx, [])
@@ -85,7 +110,7 @@ let gen_glsl_tp_tm emit_uniform ctx = function
 
 let gen_glsl toplevel emit_uniform =
   toplevel
-  |> List.fold_left_map (fun t -> gen_glsl_tp_tm emit_uniform t) []
+  |> List.fold_left_map (fun t -> gen_glsl_tp_tm emit_uniform t) ([], [])
   |> (fun (_, ss) -> List.flatten ss)
   |> List.filter (fun s -> not (s = ""))
   |> String.concat "\n\n"
