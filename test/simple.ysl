@@ -15,6 +15,8 @@ type TTT2[
     ]
 ]
 
+type Unit[]
+
 uniform iResolution: vec3
 uniform iTime: float
 uniform iTimeDelta: float
@@ -27,8 +29,6 @@ uniform iTuple: [float, int, float]
 
 extern normalize_vec3: vec3 -> vec3 = normalize
 extern cross: vec3 -> vec3 -> vec3
-
-type sample2D;
 
 let add = fn a: float. fn b: float. a + b
 
