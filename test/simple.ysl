@@ -34,6 +34,10 @@ let add = fn a: float. fn b: float. a + b
 
 let bv = fn _: []. true && 12 > 3 || 22.0 <= 1.0
 
+let do_cross = fn a: vec3. fn b: vec3. cross a b
+
+let test_let = fn tlet: float. let tlet = tlet in tlet
+
 entry main = fn frag_coord: vec2. 
     let v = (1.0 + 1.0) * 2.0 + 2.0 * 3.0 - -10.0 in
     let n = normalize_vec3 vec3[frag_coord.0, frag_coord.1, v] in
@@ -42,3 +46,13 @@ entry main = fn frag_coord: vec2.
             if i <= 0 then [false, i] else [true, i - 1]
     in
     vec4[n.0, n.1, n.2, 1.0].0
+
+let test_if = fn cond: bool. if cond then true else false
+let test_tuple = fn va: float. fn vb: bool. [va, vb]
+
+type Rcd {
+    a: float,
+    b: bool,
+}
+
+let test_rcd = fn va: float. fn vb: bool. Rcd{ a = va, b = vb }

@@ -3,7 +3,18 @@ open Syntax
 type token = tm_info * string
 
 let keywords =
-  [ "fn"; "let"; "in"; "uniform"; "entry"; "extern"; "if"; "else"; "then" ]
+  [
+    "fn";
+    "let";
+    "in";
+    "uniform";
+    "entry";
+    "extern";
+    "if";
+    "else";
+    "then";
+    "type";
+  ]
 
 let is_keyword str = List.exists (fun k -> k = str) keywords
 

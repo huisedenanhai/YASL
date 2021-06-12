@@ -30,6 +30,8 @@ let ctx_has_glsl_struct_name ctx name =
   | Some _ -> true
   | None -> false
 
+let ctx_get_var_binding ctx name = List.assoc name ctx.nbt
+
 let ctx_add_var_binding ctx name mangled_name ty =
   { ctx with nbt = (name, (mangled_name, ty)) :: ctx.nbt }
 
@@ -122,12 +124,10 @@ let rec flatten_ty_arrow = function
   | TyPlain ty -> [ ty ]
 
 let glsl_fill_struct ctx dst_name src_name src_ty_name =
-  Printf.printf "fill struct %s\n" src_ty_name;
   match ctx_get_glsl_struct ctx src_ty_name with
   | Some ctx_fields ->
       ctx_fields
       |> List.map (fun (s, _) ->
-             Printf.printf "  %s\n" s;
              Printf.sprintf "  %s.%s = %s%s;" dst_name s
                (if src_name = "" then "" else src_name ^ ".")
                s)
@@ -135,6 +135,17 @@ let glsl_fill_struct ctx dst_name src_name src_ty_name =
 
 let glsl_fill_struct_from_env ctx name ty_name =
   glsl_fill_struct ctx name "" ty_name
+
+let glsl_fill_struct_with_values ctx name ty_name values =
+  match ctx_get_glsl_struct ctx ty_name with
+  | Some ctx_fields ->
+      List.map2
+        (fun (s, _) v -> Printf.sprintf "  %s.%s = %s;" name s v)
+        ctx_fields values
+  | _ -> []
+
+let glsl_fill_struct_with_kvs name kvs =
+  kvs |> List.map (fun (k, v) -> Printf.sprintf "  %s.%s = %s;" name k v)
 
 let glsl_unpack_ctx ctx ty_name =
   match ctx_get_glsl_struct ctx ty_name with
@@ -154,10 +165,14 @@ let glsl_gen_func ctx ty arg_mangled body_glsl body_var =
   let ty_name = glsl_name_of_ty ty in
   let st_name = glsl_name_of_plain_ty st in
   let dt_name = glsl_name_of_ty dt in
-  Printf.sprintf "%s %s(%s %s, %s %s) {\n%s\nreturn %s;\n}" dt_name
+  Printf.sprintf "%s %s(%s %s, %s %s) {\n%s\n  return %s;\n}" dt_name
     glsl_func_call ty_name glsl_ctx_name st_name arg_mangled
-    (glsl_unpack_ctx ctx ty_name @ body_glsl |> String.concat "\n")
+    (glsl_unpack_ctx ctx ty_name @ [ "" ] @ body_glsl |> String.concat "\n")
     body_var
+
+let ty_of_info = function
+  | { ty = Some ty; _ } -> ty
+  | _ -> raise_code_gen_error "term not typed"
 
 let rec gen_glsl_extern_func (ctx : glsl_ctx) ty args native_name =
   match ty with
@@ -220,26 +235,108 @@ let gen_glsl_atom_value = function
   | FloatLiteral v -> string_of_float v
   | BoolLiteral v -> if v then "true" else "false"
 
-let rec gen_glsl_tm ctx = function
+let cast_plain = function
+  | TyPlain t -> t
+  | _ -> raise_code_gen_error "expect plain type"
+
+let glsl_decl_val ty name =
+  Printf.sprintf "  %s %s;" (glsl_name_of_ty ty) name
+
+let rec gen_glsl_tm ctx =
+  let gen_abs ctx ty arg_name arg_ty body_tm =
+    let arg_mangled = get_val_name arg_name in
+    let body_var, body_glsl, ctx', body_decls =
+      gen_glsl_tm
+        (ctx_add_var_binding ctx arg_name arg_mangled (TyPlain arg_ty))
+        body_tm
+    in
+    let ctx = ctx_accept_emitted_ty ctx ctx' in
+    let ctx, ty_decls = ensure_auto_glsl_type_declare ctx ty in
+    let func = glsl_gen_func ctx ty arg_mangled body_glsl body_var in
+    let func_var = get_val_name "fn" in
+    let ty_name = glsl_name_of_ty ty in
+    let var_decl =
+      Printf.sprintf "  %s %s;" ty_name func_var
+      :: glsl_fill_struct_from_env ctx func_var ty_name
+    in
+    (func_var, var_decl, ctx, body_decls @ ty_decls @ [ func ])
+  in
+  let do_apply ctx ret_ty var1 var2 body decl =
+    let res = get_val_name "app" in
+    ( res,
+      body
+      @ [
+          glsl_decl_val ret_ty res;
+          Printf.sprintf "  %s = %s(%s, %s);" res glsl_func_call var1 var2;
+        ],
+      ctx,
+      decl )
+  in
+  function
   | TmAtom (_, v) -> (gen_glsl_atom_value v, [], ctx, [])
-  | TmAbs ({ ty = Some ty; _ }, arg_name, arg_ty, body_tm) ->
-      let arg_mangled = get_val_name arg_name in
-      let body_var, body_glsl, ctx', body_decls =
-        gen_glsl_tm
-          (ctx_add_var_binding ctx arg_name arg_mangled (TyPlain arg_ty))
-          body_tm
+  | TmAbs (info, arg_name, arg_ty, body_tm) ->
+      gen_abs ctx (ty_of_info info) arg_name arg_ty body_tm
+  | TmApp (info, t1, t2) ->
+      let ty = ty_of_info info in
+      let var1, body1, ctx, decl1 = gen_glsl_tm ctx t1 in
+      let var2, body2, ctx, decl2 = gen_glsl_tm ctx t2 in
+      do_apply ctx ty var1 var2 (body1 @ body2) (decl1 @ decl2)
+  | TmLet (info, name, t1, t2) ->
+      let ty1 = cast_plain (ty_of_info (get_tm_info t1)) in
+      let ty2 = ty_of_info (get_tm_info t2) in
+      let var1, body1, ctx, decl1 = gen_glsl_tm ctx t1 in
+      let var2, body2, ctx, decl2 =
+        gen_abs ctx (TyArrow (id_of_tm_info info, ty1, ty2)) name ty1 t2
       in
-      let ctx = ctx_accept_emitted_ty ctx ctx' in
-      let ctx, ty_decls = ensure_auto_glsl_type_declare ctx ty in
-      let func = glsl_gen_func ctx ty arg_mangled body_glsl body_var in
-      let func_var = get_val_name "fn" in
+      do_apply ctx ty2 var2 var1 (body1 @ body2) (decl1 @ decl2)
+  | TmIf (info, tc, t1, t2) ->
+      let ty = ty_of_info info in
+      let varc, bodyc, ctx, declc = gen_glsl_tm ctx tc in
+      let var1, body1, ctx, decl1 = gen_glsl_tm ctx t1 in
+      let var2, body2, ctx, decl2 = gen_glsl_tm ctx t2 in
+      let res = get_val_name "if" in
+      let decl_res = glsl_decl_val ty res in
+      let concat = String.concat "\n" in
+      let body =
+        Printf.sprintf
+          "  if (%s) {\n%s\n    %s = %s;\n  } else {\n%s\n    %s = %s;\n  }"
+          varc (concat body1) res var1 (concat body2) res var2
+      in
+      (res, bodyc @ [ decl_res; body ], ctx, declc @ decl1 @ decl2)
+  | TmTuple (info, tms) ->
+      let ty = ty_of_info info in
+      let ctx, decls = ensure_auto_glsl_type_declare ctx ty in
+      let vars, body, ctx, decls =
+        tms
+        |> List.fold_left
+             (fun (var, body, ctx, decl) tm ->
+               let var', body', ctx', decl' = gen_glsl_tm ctx tm in
+               (var @ [ var' ], body @ body', ctx', decl @ decl'))
+             ([], [], ctx, decls)
+      in
+      let res = get_val_name "tp" in
       let ty_name = glsl_name_of_ty ty in
-      let var_decl =
-        Printf.sprintf "  %s %s;" ty_name func_var
-        :: glsl_fill_struct_from_env ctx func_var ty_name
+      let var_decl = glsl_decl_val ty res in
+      let fill_tp = glsl_fill_struct_with_values ctx res ty_name vars in
+      (res, body @ [ var_decl ] @ fill_tp, ctx, decls)
+  | TmRecord (info, _, kvs) ->
+      let ty = ty_of_info info in
+      let kvs, body, ctx, decls =
+        kvs
+        |> List.fold_left
+             (fun (var, body, ctx, decl) (k, v) ->
+               let var', body', ctx', decl' = gen_glsl_tm ctx v in
+               (var @ [ (k, var') ], body @ body', ctx', decl @ decl'))
+             ([], [], ctx, [])
       in
-      (func_var, var_decl, ctx, body_decls @ ty_decls @ [ func ])
-  | _ -> ("var_dummy", [], ctx, [])
+      let res = get_val_name "rcd" in
+      let var_decl = glsl_decl_val ty res in
+      let fill_rcd = glsl_fill_struct_with_kvs res kvs in
+      (res, body @ [ var_decl ] @ fill_rcd, ctx, decls)
+  | TmIdent (_, name) ->
+      let name_mangled, _ = ctx_get_var_binding ctx name in
+      (name_mangled, [], ctx, [])
+  | _ -> ("0", [], ctx, [])
 
 let gen_glsl_tp_tm emit_uniform ctx = function
   | TopTmUnfiorm (_, name, pt) ->
@@ -276,11 +373,14 @@ let gen_glsl_tp_tm emit_uniform ctx = function
           let ctx, s_decl = glsl_add_struct ctx name kts in
           (ctx, auto_decls @ s_decl)
       | TyDeclOpaque _ -> (ctx, []))
-  | TopTmLet ({ ty = Some ty; _ }, name, tm) ->
+  | TopTmLet (info, name, tm) ->
+      let ty = ty_of_info info in
       let vn, _, ctx, glsl = gen_glsl_tm ctx tm in
       (ctx_add_var_binding ctx name vn ty, glsl)
-  | TopTmEntry _ -> (ctx, [])
-  | _ -> raise_code_gen_error "failed"
+  | TopTmEntry (info, name, tm) ->
+      let ty = ty_of_info info in
+      let vn, _, ctx, glsl = gen_glsl_tm ctx tm in
+      (ctx_add_var_binding ctx name vn ty, glsl)
 
 let gen_glsl toplevel emit_uniform =
   toplevel

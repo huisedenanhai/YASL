@@ -188,12 +188,12 @@ let rec desc_string_of_term_indent indent tm =
       let kts_desc =
         kts
         |> List.map (fun (k, tm) ->
-               Printf.sprintf "%s%s: %s" next_indent k
+               Printf.sprintf "%s%s:\n%s" next_indent k
                  (desc_string_of_term_indent (next_indent ^ "  ") tm))
         |> String.concat ",\n"
       in
-      Printf.sprintf "%sTmRecord<%s>(%s){\n%s\n%s}" indent
-        (string_of_tm_info info) indent name kts_desc
+      Printf.sprintf "%sTmRecord<%s>(%s){\n%s}" indent
+        (string_of_tm_info info) name kts_desc
   | TmTupleAccess (info, tm, index) ->
       Printf.sprintf "%sTmTupleAccess<%s>(\n%s\n%s.%d)" indent
         (string_of_tm_info info)
