@@ -1,4 +1,5 @@
 open Syntax
+open Ty
 
 exception CogenError of string
 
@@ -242,6 +243,15 @@ let cast_plain = function
 let glsl_decl_val ty name =
   Printf.sprintf "  %s %s;" (glsl_name_of_ty ty) name
 
+let ty_is_builtin_vec ty_name =
+  all_builtin_vec_types |> List.exists (fun (s, _) -> s = ty_name)
+
+let ty_is_builtin_matrix ty_name =
+  all_builtin_matrix_types |> List.exists (fun (s, _) -> s = ty_name)
+
+let ty_is_builtin_tuple ty_name =
+  ty_is_builtin_vec ty_name || ty_is_builtin_matrix ty_name
+
 let rec gen_glsl_tm ctx =
   let gen_abs ctx ty arg_name arg_ty body_tm =
     let arg_mangled = get_val_name arg_name in
@@ -271,6 +281,29 @@ let rec gen_glsl_tm ctx =
         ],
       ctx,
       decl )
+  in
+  let init_tuple ctx ty tms =
+    let ctx, decls = ensure_auto_glsl_type_declare ctx ty in
+    let vars, body, ctx, decls =
+      tms
+      |> List.fold_left
+           (fun (var, body, ctx, decl) tm ->
+             let var', body', ctx', decl' = gen_glsl_tm ctx tm in
+             (var @ [ var' ], body @ body', ctx', decl @ decl'))
+           ([], [], ctx, decls)
+    in
+    let res = get_val_name "tp" in
+    let ty_name = glsl_name_of_ty ty in
+    let var_decl = glsl_decl_val ty res in
+    let fill_tp =
+      if ty_is_builtin_tuple ty_name then
+        [
+          Printf.sprintf "  %s = %s(%s);" res ty_name
+            (String.concat ", " vars);
+        ]
+      else glsl_fill_struct_with_values ctx res ty_name vars
+    in
+    (res, body @ [ var_decl ] @ fill_tp, ctx, decls)
   in
   function
   | TmAtom (_, v) -> (gen_glsl_atom_value v, [], ctx, [])
@@ -303,22 +336,53 @@ let rec gen_glsl_tm ctx =
           varc (concat body1) res var1 (concat body2) res var2
       in
       (res, bodyc @ [ decl_res; body ], ctx, declc @ decl1 @ decl2)
+  | TmLoop (info, t1, t2) ->
+      let ty = ty_of_info info in
+      let var1, body1, ctx, decl1 = gen_glsl_tm ctx t1 in
+      let var2, body2, ctx, decl2 = gen_glsl_tm ctx t2 in
+      let loop_cond = get_val_name "loop_cond" in
+      let res = get_val_name "loop" in
+      let var_decls =
+        [
+          Printf.sprintf "  %s %s = true;" "bool" loop_cond;
+          glsl_decl_val ty res;
+          Printf.sprintf "  %s = %s;" res var1;
+        ]
+      in
+      let ty2 = ty_of_info (get_tm_info t2) in
+      let _, _, dt = force_unpack_ty_arrow ty2 in
+      let loop_body_res, loop_body, ctx, decl =
+        do_apply ctx dt var2 res [] []
+      in
+      let loop =
+        Printf.sprintf "  while (%s) {\n%s\n  %s = %s.%s;\n  %s = %s.%s;\n}"
+          loop_cond
+          (String.concat "\n" loop_body)
+          loop_cond loop_body_res (tuple_field_name 0) res loop_body_res
+          (tuple_field_name 1)
+      in
+      (res, body1 @ body2 @ var_decls @ [ loop ], ctx, decl1 @ decl2 @ decl)
   | TmTuple (info, tms) ->
       let ty = ty_of_info info in
-      let ctx, decls = ensure_auto_glsl_type_declare ctx ty in
-      let vars, body, ctx, decls =
-        tms
-        |> List.fold_left
-             (fun (var, body, ctx, decl) tm ->
-               let var', body', ctx', decl' = gen_glsl_tm ctx tm in
-               (var @ [ var' ], body @ body', ctx', decl @ decl'))
-             ([], [], ctx, decls)
-      in
-      let res = get_val_name "tp" in
-      let ty_name = glsl_name_of_ty ty in
+      init_tuple ctx ty tms
+  | TmNamedTuple (info, _, tms) ->
+      let ty = ty_of_info info in
+      init_tuple ctx ty tms
+  | TmTupleAccess (info, tm, index) ->
+      let ty = ty_of_info info in
+      let var, body, ctx, decl = gen_glsl_tm ctx tm in
+      let res = get_val_name "tp_access" in
       let var_decl = glsl_decl_val ty res in
-      let fill_tp = glsl_fill_struct_with_values ctx res ty_name vars in
-      (res, body @ [ var_decl ] @ fill_tp, ctx, decls)
+      let tm_ty_name = glsl_name_of_ty (ty_of_info (get_tm_info tm)) in
+      let do_access =
+        if ty_is_builtin_vec tm_ty_name then
+          let fields = [ "x"; "y"; "z"; "w" ] in
+          Printf.sprintf "  %s = %s.%s;" res var (List.nth fields index)
+        else if ty_is_builtin_matrix tm_ty_name then
+          Printf.sprintf "  %s = %s[%d];" res var index
+        else Printf.sprintf "  %s = %s.%s;" res var (tuple_field_name index)
+      in
+      (res, body @ [ var_decl; do_access ], ctx, decl)
   | TmRecord (info, _, kvs) ->
       let ty = ty_of_info info in
       let kvs, body, ctx, decls =
@@ -333,10 +397,35 @@ let rec gen_glsl_tm ctx =
       let var_decl = glsl_decl_val ty res in
       let fill_rcd = glsl_fill_struct_with_kvs res kvs in
       (res, body @ [ var_decl ] @ fill_rcd, ctx, decls)
+  | TmRecordAccess (info, tm, key) ->
+      let ty = ty_of_info info in
+      let var, body, ctx, decl = gen_glsl_tm ctx tm in
+      let res = get_val_name "rcd_access" in
+      let var_decl = glsl_decl_val ty res in
+      let assign_val = Printf.sprintf "  %s = %s.%s;" res var key in
+      (res, body @ [ var_decl; assign_val ], ctx, decl)
+  | TmOp (info, op, tm) ->
+      (* TODO: short cut for binary ops *)
+      let ty = ty_of_info info in
+      let var, body, ctx, decl = gen_glsl_tm ctx tm in
+      let res = get_val_name "op" in
+      let tm_ty = ty_of_info (get_tm_info tm) in
+      let is_binary =
+        match tm_ty with
+        | TyPlain (TyTuple _) -> true
+        | _ -> false
+      in
+      let res_decl = glsl_decl_val ty res in
+      let do_op =
+        if is_binary then
+          Printf.sprintf "  %s = %s.%s %s %s.%s;" res var
+            (tuple_field_name 0) op var (tuple_field_name 1)
+        else Printf.sprintf "  %s = %s%s;" res op var
+      in
+      (res, body @ [ res_decl; do_op ], ctx, decl)
   | TmIdent (_, name) ->
       let name_mangled, _ = ctx_get_var_binding ctx name in
       (name_mangled, [], ctx, [])
-  | _ -> ("0", [], ctx, [])
 
 let gen_glsl_tp_tm emit_uniform ctx = function
   | TopTmUnfiorm (_, name, pt) ->

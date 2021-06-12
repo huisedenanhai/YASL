@@ -50,6 +50,12 @@ let ty_int = TyNamed "int"
 
 let ty_float = TyNamed "float"
 
+let all_builtin_vec_types =
+  builtin_vec_types "" ty_float @ builtin_vec_types "i" ty_int
+
+let all_builtin_matrix_types =
+  builtin_matrix_types "" @ builtin_matrix_types "i"
+
 let builtin_primitive_tys =
   [ "bool"; "int"; "float" ] |> List.map (fun n -> (n, TyDeclOpaque n))
 
@@ -107,10 +113,8 @@ let builtin_ctx =
       ];
     ty_decls =
       builtin_primitive_tys
-      @ builtin_vec_types "" ty_float
-      @ builtin_vec_types "i" ty_int
-      @ builtin_matrix_types ""
-      @ builtin_matrix_types "i";
+      @ all_builtin_vec_types
+      @ all_builtin_matrix_types;
     var_ty = [];
   }
 

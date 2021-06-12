@@ -55,4 +55,4 @@ type Rcd {
     b: bool,
 }
 
-let test_rcd = fn va: float. fn vb: bool. Rcd{ a = va, b = vb }
+let test_rcd = fn va: float. fn vb: bool. Rcd{ a = va, b = vb }.a
