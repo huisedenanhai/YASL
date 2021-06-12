@@ -401,15 +401,7 @@ let type_toplevel_tm ctx tp_tm =
         TopTmTyDeclare (info_set_type info ty, ty_decl) )
   | TopTmLet (info, name, tm) ->
       let tm, ty = type_tm ctx tm in
-      if is_arrow_ty ty then
-        (ctx_add_var ctx name ty, TopTmLet (info_set_type info ty, name, tm))
-      else raise_type_err info "toplevel let should have function type"
-  | TopTmEntry (info, name, tm) ->
-      let tm, ty = type_tm ctx tm in
-      if is_arrow_ty ty then
-        ( ctx_add_var ctx name ty,
-          TopTmEntry (info_set_type info ty, name, tm) )
-      else raise_type_err info "entry should have function type"
+      (ctx_add_var ctx name ty, TopTmLet (info_set_type info ty, name, tm))
 
 let rec type_toplevel ctx = function
   | [] -> []

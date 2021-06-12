@@ -218,7 +218,6 @@ type toplevel_term =
   | TopTmExtern of tm_info * string * ty * string
   | TopTmTyDeclare of tm_info * ty_declare
   | TopTmLet of tm_info * string * term
-  | TopTmEntry of tm_info * string * term
 
 let desc_string_of_toplevel_term = function
   | TopTmUnfiorm (info, name, ty) ->
@@ -232,7 +231,4 @@ let desc_string_of_toplevel_term = function
         (desc_string_of_ty_declare decl)
   | TopTmLet (info, name, tm) ->
       Printf.sprintf "Let<%s>(%s =\n%s)" (string_of_tm_info info) name
-        (desc_string_of_term_indent "  " tm)
-  | TopTmEntry (info, name, tm) ->
-      Printf.sprintf "Entry<%s>(%s =\n%s)" (string_of_tm_info info) name
         (desc_string_of_term_indent "  " tm)

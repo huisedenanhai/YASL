@@ -42,7 +42,6 @@ TopLevel := uniform name: PlainType
             extern func_name: PlainType -> T = native_name
             TypDeclare
             let name = t
-            entry name = t
 ```
 
 `'c` in function type `PlainType <'c>-> T` is auto generated function id, so each function has different type, which makes code gen simple, as calling context and behaviour are all deterministic for a function.
@@ -51,8 +50,6 @@ Users will not write any `'c`. If one writes `T1 -> T2` for type checking, he de
 
 We currently do not allow function as argument to avoid complex generic types.
 
-Entry functions are visible in the translated GLSL code. 
-
 Types should be forward declared. We don't support recursive types.
 
 Operators are overloaded. Operators are not a term by its own. Our syntax also avoid partial application of operators. Thus each terms still has unique types.
@@ -60,6 +57,10 @@ Operators are overloaded. Operators are not a term by its own. Our syntax also a
 Unary and binary operators are merged into TmOp in our implementation for simplicity.
 
 Variable names can be shadowed, while type names can not.
+
+There should be a `main` function with signature `vec2 -> vec4`, which takes a frag uv and return the pixel color.
+
+Currently we only generate fragment shader.
 
 ## Typing
 

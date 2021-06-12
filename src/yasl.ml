@@ -43,7 +43,7 @@ let main =
   if !dump_ast then print_toplevel tp_tms else ();
   let glsl = gen_glsl tp_tms !emit_uniform in
   let output_file =
-    if !output_file = "~" then !input_file ^ ".gen.glsl" else !output_file
+    if !output_file = "~" then !input_file ^ ".gen.frag" else !output_file
   in
   let oc = open_out output_file in
   Printf.fprintf oc "%s\n" glsl;

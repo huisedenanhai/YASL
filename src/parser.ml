@@ -8,7 +8,6 @@ let keywords =
     "let";
     "in";
     "uniform";
-    "entry";
     "extern";
     "if";
     "else";
@@ -407,7 +406,4 @@ let rec parse_toplevel = function
   | (info, "let") :: (_, name) :: (_, "=") :: tks when is_ident name ->
       let tm, tks = parse_term tks in
       TopTmLet (info, name, tm) :: parse_toplevel tks
-  | (info, "entry") :: (_, name) :: (_, "=") :: tks when is_ident name ->
-      let tm, tks = parse_term tks in
-      TopTmEntry (info, name, tm) :: parse_toplevel tks
   | (info, _) :: _ -> raise_parse_err info "invalid top level declare"
