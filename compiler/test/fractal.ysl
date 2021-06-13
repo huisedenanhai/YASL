@@ -46,7 +46,7 @@ let distance = fn c: vec2.
     let di = lp.di in
     let z2 = dot z z in
     let dz2 = dot dz dz in
-    let d = 0.5 * (sqrt (z2 / dz2)) * (log z2) in
+    let d = 0.5 * (sqrt z2 / dz2) * (log z2) in
     if di > 0.5 then 0.0 else d
 
 let main = fn frag_coord: vec2.
