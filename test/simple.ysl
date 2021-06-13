@@ -47,7 +47,7 @@ let main = fn frag_coord: vec2.
         fn i: int.
             if i <= 0 then [false, i] else [true, i - 1]
     in
-    vec4[n.0, value, n.2, 1.0]
+    vec4[frag_coord.0, frag_coord.1, 0.0, 1.0]
 
 let test_if = fn cond: bool. if cond then true else false
 let test_tuple = fn va: float. fn vb: bool. [va, vb]
