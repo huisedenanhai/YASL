@@ -11,6 +11,7 @@
 #include <shaderc/shaderc.hpp>
 #include <spirv_glsl.hpp>
 #include <sstream>
+#include <stdexcept>
 #include <unordered_map>
 #include <vector>
 
@@ -55,7 +56,7 @@ std::string load_frag_shader(const fs::path &path) {
     auto res =
         compiler.CompileGlslToSpv(str,
                                   shaderc_shader_kind::shaderc_fragment_shader,
-                                  path.c_str(),
+                                  path.string().c_str(),
                                   options);
     if (res.GetCompilationStatus() != shaderc_compilation_status_success) {
       throw std::runtime_error(res.GetErrorMessage());
@@ -133,8 +134,10 @@ private:
     };
 
     std::vector<uint32_t> indices = {0, 1, 2, 1, 3, 2};
-    _mesh = std::make_unique<Mesh>(
-        vertices.data(), vertices.size(), indices.data(), indices.size());
+    _mesh = std::make_unique<Mesh>(vertices.data(),
+                                   uint32_t(vertices.size()),
+                                   indices.data(),
+                                   uint32_t(indices.size()));
     reload_shader();
   }
 
