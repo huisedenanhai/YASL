@@ -9,6 +9,7 @@ type glsl_ctx = {
   tns : (string * (string * ty) list) list;
   nbt : (string * (string * ty)) list;
   init : string list;
+  uniform_binding : int;
 }
 
 let ctx_add_init ctx glsl = { ctx with init = ctx.init @ glsl }
@@ -39,7 +40,11 @@ let ctx_get_var_binding ctx name = List.assoc name ctx.nbt
 let ctx_add_var_binding ctx name mangled_name ty =
   { ctx with nbt = (name, (mangled_name, ty)) :: ctx.nbt }
 
-let init_glsl_ctx = { tns = []; nbt = []; init = [] }
+let init_glsl_ctx = { tns = []; nbt = []; init = []; uniform_binding = 0 }
+
+let get_and_inc_uniform_binding ctx =
+  ( { ctx with uniform_binding = ctx.uniform_binding + 1 },
+    ctx.uniform_binding )
 
 let glsl_func_call = "Yasl_call"
 
@@ -442,10 +447,14 @@ let gen_glsl_tp_tm emit_uniform ctx = function
         let ctx, auto_decls =
           ensure_auto_glsl_plain_type_declares ctx [ pt ]
         in
+        let ctx = ctx_add_var_binding ctx name name (TyPlain pt) in
+        let ctx, binding = get_and_inc_uniform_binding ctx in
         ( ctx,
           auto_decls
           @ [
-              Printf.sprintf "uniform %s %s;" (glsl_name_of_plain_ty pt) name;
+              Printf.sprintf "layout(location = %d) uniform %s %s;" binding
+                (glsl_name_of_plain_ty pt)
+                name;
             ] )
       else (ctx, [])
   | TopTmExtern (_, name, ty, native_name) ->

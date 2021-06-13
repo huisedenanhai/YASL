@@ -3,6 +3,10 @@ extern log: float -> float
 extern sqrt: float -> float
 extern clamp: float -> float -> float -> float
 extern pow: float -> float -> float
+extern cos: float -> float
+
+uniform iTime: float
+uniform iResolution: vec2
 
 type Loop {
     di: float,
@@ -50,7 +54,12 @@ let distance = fn c: vec2.
     if di > 0.5 then 0.0 else d
 
 let main = fn frag_coord: vec2.
+    let tz = 0.5 - 0.5 * (cos 0.225 * iTime) in
+    let zoo = pow 0.5 13.0 * tz in
     let c = vec2[2.0, 2.0] * frag_coord - vec2[1.0, 1.0] in
+    let aspect = iResolution.1 / iResolution.0 in
+    let c = c * vec2[1.0, aspect] in
+    let c = vec2[-0.05, 0.6805] + c * vec2[zoo, zoo] in
     let d = distance c in 
-    let d = clamp (pow 4.0 * d 0.2) 0.0 1.0 in
+    let d = clamp (pow 4.0 * d / zoo 0.2) 0.0 1.0 in
     vec4[d, d, d, 1.0]

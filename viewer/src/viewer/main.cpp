@@ -46,11 +46,12 @@ std::string load_frag_shader(const fs::path &path) {
   std::ifstream f(path);
   std::string str((std::istreambuf_iterator<char>(f)),
                   std::istreambuf_iterator<char>());
-  std::vector<uint32_t> spirv;
-  {
+  int version = 140;
+  auto compile_to_spirv = [&](shaderc_optimization_level opt_level) {
     shaderc::Compiler compiler{};
     shaderc::CompileOptions options{};
-    options.SetOptimizationLevel(shaderc_optimization_level_performance);
+    options.SetOptimizationLevel(opt_level);
+    options.SetTargetEnvironment(shaderc_target_env_opengl, version);
     auto res =
         compiler.CompileGlslToSpv(str,
                                   shaderc_shader_kind::shaderc_fragment_shader,
@@ -59,22 +60,46 @@ std::string load_frag_shader(const fs::path &path) {
     if (res.GetCompilationStatus() != shaderc_compilation_status_success) {
       throw std::runtime_error(res.GetErrorMessage());
     }
-    spirv = std::vector<uint32_t>(res.begin(), res.end());
-  }
-  spirv_cross::CompilerGLSL glsl_compiler(spirv.data(), spirv.size());
-  std::unordered_map<unsigned int, std::string> input_names = {{0, "v_uv"}};
-  for (auto var : glsl_compiler.get_active_interface_variables()) {
-    if (glsl_compiler.has_decoration(var, spv::DecorationLocation) &&
-        glsl_compiler.get_storage_class(var) == spv::StorageClassInput) {
-      auto decoration =
-          glsl_compiler.get_decoration(var, spv::DecorationLocation);
-      if (input_names.count(decoration) != 0) {
-        glsl_compiler.set_name(var, input_names[decoration]);
+    return std::vector<uint32_t>(res.begin(), res.end());
+  };
+
+  std::unordered_map<unsigned int, std::string> uniform_names{};
+  {
+    // compile without optimization to extract reflection info
+    auto spirv = compile_to_spirv(shaderc_optimization_level_zero);
+    spirv_cross::Compiler reflection(spirv.data(), spirv.size());
+    for (auto var : reflection.get_active_interface_variables()) {
+      if (reflection.has_decoration(var, spv::DecorationLocation) &&
+          reflection.get_storage_class(var) ==
+              spv::StorageClassUniformConstant) {
+        auto location = reflection.get_decoration(var, spv::DecorationLocation);
+        uniform_names[location] = reflection.get_name(var);
       }
     }
   }
+  auto spirv = compile_to_spirv(shaderc_optimization_level_performance);
+  spirv_cross::CompilerGLSL glsl_compiler(spirv.data(), spirv.size());
+  std::unordered_map<unsigned int, std::string> input_names = {{0, "v_uv"}};
+  for (auto var : glsl_compiler.get_active_interface_variables()) {
+    if (glsl_compiler.has_decoration(var, spv::DecorationLocation)) {
+      auto location =
+          glsl_compiler.get_decoration(var, spv::DecorationLocation);
+      if (glsl_compiler.get_storage_class(var) == spv::StorageClassInput) {
+        if (input_names.count(location) != 0) {
+          glsl_compiler.set_name(var, input_names[location]);
+        }
+      }
+      if (glsl_compiler.get_storage_class(var) ==
+          spv::StorageClassUniformConstant) {
+        if (uniform_names.count(location) != 0) {
+          glsl_compiler.set_name(var, uniform_names[location]);
+        }
+      }
+    }
+  }
+
   auto options = glsl_compiler.get_common_options();
-  options.version = 140;
+  options.version = version;
   glsl_compiler.set_common_options(options);
   return glsl_compiler.compile();
 }
@@ -95,15 +120,16 @@ private:
 
     _program = std::make_unique<Program>(shaders, 2);
 
+    last_time = glfwGetTime();
     // now shaders can be released automatically
   }
 
   void init() override {
     std::vector<Mesh::Vertex> vertices = {
-        {{-0.5f, -0.5f, 0.0f}, {}, {}, {0.0f, 0.0f}}, // left-down
-        {{0.5f, -0.5f, 0.0f}, {}, {}, {1.0f, 0.0f}},  // right-down
-        {{-0.5f, 0.5f, 0.0f}, {}, {}, {0.0f, 1.0f}},  // left-up
-        {{0.5f, 0.5f, 0.0f}, {}, {}, {1.0f, 1.0f}}    // right-up
+        {{-1.0f, -1.0f, 0.0f}, {}, {}, {0.0f, 0.0f}}, // left-down
+        {{1.0f, -1.0f, 0.0f}, {}, {}, {1.0f, 0.0f}},  // right-down
+        {{-1.0f, 1.0f, 0.0f}, {}, {}, {0.0f, 1.0f}},  // left-up
+        {{1.0f, 1.0f, 0.0f}, {}, {}, {1.0f, 1.0f}}    // right-up
     };
 
     std::vector<uint32_t> indices = {0, 1, 2, 1, 3, 2};
@@ -124,6 +150,13 @@ private:
   }
 
   void draw_ui() {
+    if (ImGui::Button("Screen Shot")) {
+      request_screen_shot();
+    }
+    auto time_per_frame = average_frame_time();
+    ImGui::Text(
+        "FPS %0.2f(%0.2fms)", 1.0f / time_per_frame, time_per_frame * 1000.0f);
+    ImGui::Checkbox("Pause", &pause);
     ImGui::Text("Path: %s", _frag_shader_path.string().c_str());
     if (ImGui::Button("Reload Shader")) {
       reload_shader();
@@ -140,6 +173,12 @@ private:
   void update() override {
     glClearColor(0.0, 0.0, 0.0, 1.0);
 
+    double cur_time = glfwGetTime();
+    if (!pause) {
+      acc_time += float(cur_time - last_time);
+    }
+    last_time = cur_time;
+
     int width, height;
     glfwGetFramebufferSize(_window, &width, &height);
 
@@ -147,10 +186,17 @@ private:
     glClear(GL_COLOR_BUFFER_BIT);
 
     glUseProgram(_program->get());
+    glUniform1f(glGetUniformLocation(_program->get(), "iTime"), acc_time);
+    glUniform2f(glGetUniformLocation(_program->get(), "iResolution"),
+                float(width),
+                float(height));
     _mesh->draw();
     draw_ui();
   }
 
+  double last_time = 0.0f;
+  bool pause = false;
+  float acc_time = 0.0f;
   fs::path _frag_shader_path;
   std::string _frag_shader_source;
   std::optional<std::string> _compile_error;

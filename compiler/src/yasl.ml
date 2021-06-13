@@ -28,12 +28,10 @@ let main =
   let input_file = ref "" in
   let output_file = ref "~" in
   let dump_ast = ref false in
-  let emit_uniform = ref false in
   let speclist =
     [
       ("-ast", Arg.Set dump_ast, "dump ast");
       ("-o", Arg.Set_string output_file, "set output file name");
-      ("-u", Arg.Set emit_uniform, "emit uniform");
     ]
   in
   let usage_msg = "yasl [-ast] filename [-o output]" in
@@ -41,7 +39,7 @@ let main =
   Arg.parse speclist anon_fun usage_msg;
   let tp_tms = get_tp_tms_from_file !input_file in
   if !dump_ast then print_toplevel tp_tms else ();
-  let glsl = gen_glsl tp_tms !emit_uniform in
+  let glsl = gen_glsl tp_tms true in
   let output_file =
     if !output_file = "~" then !input_file ^ ".gen.frag" else !output_file
   in
