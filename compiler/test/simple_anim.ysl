@@ -1,0 +1,10 @@
+uniform iTime: float
+
+extern cos: vec3 -> vec3
+
+let main = fn c: vec2. 
+    let c = vec3[c.0, c.1, c.0] in
+    let t = vec3[iTime, iTime, iTime] in
+    let half = vec3[0.5, 0.5, 0.5] in
+    let col = half + half * (cos t + c + vec3[0.0, 2.0, 4.0]) in
+    vec4[col.0, col.1, col.2, 1.0]
