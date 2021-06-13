@@ -1,0 +1,56 @@
+extern dot: vec2 -> vec2 -> float
+extern log: float -> float
+extern sqrt: float -> float
+extern clamp: float -> float -> float -> float
+extern pow: float -> float -> float
+
+type Loop {
+    di: float,
+    z: vec2,
+    m2: float,
+    dz: vec2
+}
+
+let complex_mul = fn a: vec2. fn b: vec2.
+    vec2[a.0 * b.0 - a.1 * b.1, a.0 * b.1 + a.1 * b.0]
+
+let distance = fn c: vec2.
+    let c2 = dot c c in
+    if 256.0 * c2 * c2 - 96.0 * c2 + 32.0 * c.0 - 3.0 < 0.0 then 0.0
+    else if 16.0 * (c2 + 2.0 * c.0 + 1.0) - 1.0 < 0.0 then 0.0
+    else let lp = loop [0, Loop{
+        di = 1.0,
+        z = vec2[0.0, 0.0],
+        m2 = 0.0,
+        dz = vec2[0.0, 0.0]
+    }] in
+    fn ctx: [int, Loop].
+        let i = ctx.0 in
+        let lp = ctx.1 in
+        let di = lp.di in
+        let z = lp.z in
+        let m2 = lp.m2 in
+        let dz = lp.dz in
+        if i >= 300 then [false, [i + 1, lp]]
+        else if m2 > 1024.0 then 
+            [false, [i, Loop{ di = 0.0, z = z, m2 = m2, dz = dz }]] 
+        else 
+            let dz = vec2[2.0, 2.0] * (complex_mul z dz) + vec2[1.0, 0.0] in
+            let z = (complex_mul z z) + c in
+            let m2 = dot z z in
+            [true, [i + 1, Loop{ di = di, z = z, m2 = m2, dz = dz } ]]
+    in 
+    let lp = lp.1 in
+    let z = lp.z in
+    let dz = lp.dz in
+    let di = lp.di in
+    let z2 = dot z z in
+    let dz2 = dot dz dz in
+    let d = 0.5 * (sqrt (z2 / dz2)) * (log z2) in
+    if di > 0.5 then 0.0 else d
+
+let main = fn frag_coord: vec2.
+    let c = vec2[2.0, 2.0] * frag_coord - vec2[1.0, 1.0] in
+    let d = distance c in 
+    let d = clamp (pow 4.0 * d 0.2) 0.0 1.0 in
+    vec4[d, d, d, 1.0]

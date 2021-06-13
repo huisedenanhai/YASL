@@ -1,0 +1,62 @@
+type Ray {
+    origin: vec3,
+    direction: vec3,
+}
+
+type TT[float, vec2]
+type TMat[float, vec2, mat3x4]
+type TTT[float, [vec2, mat3x4]]
+type TTT2[
+    float, 
+    [
+        vec2, mat3x4, 
+        [float, float],
+        [float, float],
+    ]
+]
+
+type Unit[]
+
+uniform iResolution: vec3
+uniform iTime: float
+uniform iTimeDelta: float
+uniform iFrame: int
+uniform iMouse: vec4
+uniform iDate: vec4
+uniform iSampleRate: float
+
+uniform iTuple: [float, int, float]
+
+extern normalize_vec3: vec3 -> vec3 = normalize
+extern cross: vec3 -> vec3 -> vec3
+
+let add = fn a: float. fn b: float. a + b
+
+let bv = fn _: []. true && 12 > 3 || 22.0 <= 1.0
+
+let do_cross = fn a: vec3. fn b: vec3. cross a b
+
+let test_let = fn tlet: float. let tlet = tlet in tlet
+
+let value = 12.0
+
+let main = fn frag_coord: vec2. 
+    let v = (1.0 + 1.0) * 2.0 + 2.0 * 3.0 - -10.0 in
+    let n = normalize_vec3 vec3[frag_coord.0, frag_coord.1, v] in
+    let i = loop 12 in
+        fn i: int.
+            if i <= 0 then [false, i] else [true, i - 1]
+    in
+    vec4[frag_coord.0, frag_coord.1, 0.0, 1.0]
+
+let test_if = fn cond: bool. if cond then true else false
+let test_tuple = fn va: float. fn vb: bool. [va, vb]
+
+type Rcd {
+    a: float,
+    b: bool,
+}
+
+let test_rcd = fn va: float. fn vb: bool. Rcd{ a = va, b = vb }.a
+
+let do_call = fn a: float. fn b: float. add a b
