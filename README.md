@@ -6,6 +6,12 @@ A strong typed functional(not really) IR that compiles to GLSL.
 
 See [doc](compiler/doc/definitions.md) for syntax definition.
 
+> WARN
+> 
+> This is a demo project at very early stage. The code generation logic only works with primitive data and structs, GLSL opaque types like `sampler` are not supported. 
+> 
+> The compiler only emits fragment shader and we provide a shader toy style viewer.
+
 ## Requirement
 
 + OCaml 4.11
